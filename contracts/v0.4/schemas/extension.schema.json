@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://career-evidence.example/contracts/extension.schema.json",
+  "title": "Career Evidence extension protocol 1.0",
+  "$ref": "https://career-evidence.example/contracts/domain.schema.json#/$defs/ExtensionMessage"
+}

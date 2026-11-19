@@ -1,0 +1,13 @@
+{
+  "id": "attempt_1",
+  "workspace_id": "ws_demo",
+  "application_id": "application_1",
+  "authorization_id": "auth_1",
+  "executor": "chrome",
+  "state": "submission_unknown",
+  "dispatch_started_at": "2026-11-16T07:00:00Z",
+  "evidence_ids": [],
+  "error_code": "CONNECTION_LOST_AFTER_DISPATCH",
+  "created_at": "2026-11-16T07:00:00Z",
+  "updated_at": "2026-11-16T07:00:00Z"
+}

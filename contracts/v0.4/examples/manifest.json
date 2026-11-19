@@ -1,0 +1,78 @@
+[
+  {
+    "file": "context.json",
+    "schema": "Context"
+  },
+  {
+    "file": "search.json",
+    "schema": "SearchRun"
+  },
+  {
+    "file": "facts.json",
+    "schema": "FactBundle"
+  },
+  {
+    "file": "assessment.json",
+    "schema": "Assessment"
+  },
+  {
+    "file": "files.json",
+    "schema": "FileList"
+  },
+  {
+    "file": "application.json",
+    "schema": "Application"
+  },
+  {
+    "file": "approval_request.json",
+    "schema": "ApprovalCreate"
+  },
+  {
+    "file": "approved_payload.json",
+    "schema": "ApprovedPayload"
+  },
+  {
+    "file": "approval.json",
+    "schema": "Approval"
+  },
+  {
+    "file": "attempt_prepared.json",
+    "schema": "Attempt"
+  },
+  {
+    "file": "attempt_received.json",
+    "schema": "ReceivedAttempt"
+  },
+  {
+    "file": "attempt_closed.json",
+    "schema": "ResolvedAttempt"
+  },
+  {
+    "file": "attempt_rejected.json",
+    "schema": "ResolvedAttempt"
+  },
+  {
+    "file": "submit_payload.json",
+    "schema": "SubmissionEnvelope"
+  },
+  {
+    "file": "task_partial.json",
+    "schema": "Task"
+  },
+  {
+    "file": "analysis_request.json",
+    "schema": "AnalysisCreate"
+  },
+  {
+    "file": "extension_prepare.json",
+    "schema": "ExtensionMessage"
+  },
+  {
+    "file": "extension_received.json",
+    "schema": "ExtensionMessage"
+  },
+  {
+    "file": "error_revision.json",
+    "schema": "Problem"
+  }
+]

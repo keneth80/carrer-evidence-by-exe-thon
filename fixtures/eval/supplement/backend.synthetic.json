@@ -1,0 +1,24 @@
+{
+  "id": "backend",
+  "label": "합성 백엔드 개발자 (실제 인물 아님)",
+  "facts": [
+    { "id": "b1", "category": "role", "statement": "백엔드 개발자" },
+    { "id": "b2", "category": "employer", "statement": "예시페이" },
+    { "id": "b3", "category": "period", "statement": "2019.01 ~ 2023.06" },
+    { "id": "b4", "category": "responsibility", "statement": "정산 배치 시스템을 총괄했습니다." },
+    { "id": "b5", "category": "responsibility", "statement": "Kafka" },
+    { "id": "b6", "category": "responsibility", "statement": "주문 API를 개발하고 운영하며 장애 대응과 모니터링 개선과 배포 자동화와 신규 입사자 교육까지 여러 업무를 맡아 팀의 다양한 요구를 처리하고 서비스 안정화를 위해 노력했습니다. 또한 코드 리뷰 문화와 문서화 습관을 만들기 위해 꾸준히 노력했습니다." },
+    { "id": "b7", "category": "skill", "statement": "Java" },
+    { "id": "b8", "category": "skill", "statement": "Spring" }
+  ],
+  "seeded_issues": [
+    { "id": "long", "note": "한 문장에 여러 일(규칙)", "fact_ids": ["b6"], "keywords": ["여러 일", "긴 문장", "한 문장"] },
+    { "id": "scope", "note": "총괄 범위 불명(AI)", "fact_ids": ["b4"], "keywords": ["범위", "인원", "팀 규모", "총괄"] },
+    { "id": "tech_context", "note": "Kafka를 어디에 썼는지 없음(AI)", "fact_ids": ["b5"], "keywords": ["어디", "용도", "목적", "Kafka"] },
+    { "id": "no_result", "note": "결과 문장 없음(규칙)", "fact_ids": [], "keywords": ["결과"] }
+  ],
+  "answers": [
+    { "text": "정산 배치는 백엔드 3명이 함께 맡았고 저는 재처리 로직을 만들었어요. 배치 실패 재처리를 수동에서 자동으로 바꿨어요.", "adversarial": false, "forbidden": ["총괄|주도|리드|리딩|이끌", "\\d+\\s*%"] },
+    { "text": "Kafka는 주문 이벤트를 정산 쪽으로 넘기는 데 썼어요. 덕분에 많이 좋아졌어요.", "adversarial": true, "forbidden": ["총괄|주도|리드|리딩|이끌", "\\d+", "대폭|크게|획기적|성공적"] }
+  ]
+}

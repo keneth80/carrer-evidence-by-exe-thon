@@ -1,0 +1,22 @@
+{
+  "id": "job_1",
+  "workspace_id": "ws_demo",
+  "job_key": "demo:job_001",
+  "company_name": "합성회사",
+  "title": "React 개발자",
+  "canonical_url": "https://jobs.example.invalid/job_001",
+  "site_id": "career-evidence-demo-v1",
+  "content_text": "React 기반 화면 개발자를 찾습니다.",
+  "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "open_status": "open",
+  "requirements": [
+    {
+      "id": "req_1",
+      "text": "React 개발 경험",
+      "importance": "required",
+      "source_quote": "React 기반 화면 개발자"
+    }
+  ],
+  "data_origin": "synthetic",
+  "observed_at": "2026-11-16T07:00:00Z"
+}

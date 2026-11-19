@@ -1,0 +1,27 @@
+{
+  "id": "facts_1",
+  "workspace_id": "ws_demo",
+  "document_id": "doc_1",
+  "revision": 1,
+  "parent_revision_id": null,
+  "facts": [
+    {
+      "id": "fact_1",
+      "category": "skill",
+      "statement": "React 기반 화면 개발",
+      "evidence": [
+        {
+          "kind": "document",
+          "document_id": "doc_1",
+          "page": 1,
+          "start": 0,
+          "end": 12,
+          "quote": "React 기반 화면 개발"
+        }
+      ]
+    }
+  ],
+  "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "confirmed_at": "2026-11-16T07:00:00Z",
+  "created_at": "2026-11-16T07:00:00Z"
+}

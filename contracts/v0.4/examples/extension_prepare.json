@@ -1,0 +1,19 @@
+{
+  "protocol_version": "1.0",
+  "kind": "request",
+  "request_id": "8f76df6a-3603-4a83-980a-4492375deab4",
+  "op": "PREPARE_ATTEMPT",
+  "application_id": "app_demo_001",
+  "form_session_id": "form_demo_001",
+  "expected_revision": 2,
+  "connection_nonce": "fixture_nonce_0123456789012345678901234567",
+  "payload": {
+    "idempotency_key": "91a5d6af-9ab9-4905-bf6d-bbca292242c1",
+    "request": {
+      "expected_revision": 2,
+      "approval_id": "approval_demo_001",
+      "form_session_id": "form_demo_001",
+      "payload_digest": "18911b608bab152ab9cd378817f687416fb2e67cfbb28da7d691feac8d03ca92"
+    }
+  }
+}

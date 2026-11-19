@@ -1,0 +1,63 @@
+{
+  "id": "app_demo_001",
+  "workspace_id": "ws_demo_001",
+  "candidate": {
+    "id": "candidate_demo_001",
+    "search_id": "search_demo_001",
+    "slot": 1,
+    "job_key": "a8c7fc98d80cc361f15c386ec4c148d872e793f4248bfed41b88aa74be0097f8",
+    "company_key": "lumino.example",
+    "company_name": "루미노랩",
+    "title": "프론트엔드 개발 리드",
+    "source_url": "https://careers.lumino.example/jobs/frontend",
+    "snippet": "주 4일 원격 근무, React 5년 이상.",
+    "hiring_status": "unknown",
+    "collected_at": "2026-11-15T11:00:00Z",
+    "provenance": "fixture"
+  },
+  "target_id": "career-evidence-demo-v1",
+  "current": {
+    "application_id": "app_demo_001",
+    "revision": 2,
+    "context_id": "ctx_demo_001",
+    "brief_id": "brief_demo_001",
+    "content": {
+      "answers": [
+        {
+          "question_id": "experience",
+          "value": "React와 TypeScript로 커머스 주문 화면을 개발하고 공통 컴포넌트와 코드 리뷰를 담당했습니다.",
+          "experience_ids": [
+            "experience_demo_001"
+          ],
+          "source_ids": [],
+          "provenance": "template_grounded",
+          "needs_review": false
+        },
+        {
+          "question_id": "motivation",
+          "value": "협업 서비스의 사용자 경험을 개선하는 데 프론트엔드 개발 경험을 활용하고 싶습니다.",
+          "experience_ids": [
+            "experience_demo_001"
+          ],
+          "source_ids": [
+            "source_demo_001"
+          ],
+          "provenance": "user_edited",
+          "needs_review": true
+        }
+      ],
+      "start_availability": "four_weeks",
+      "file_id": "file_demo_001",
+      "consent": {
+        "test_submission": true,
+        "text_version": "demo-consent.v1"
+      }
+    },
+    "digest": "7a29fb4e59c16cc57cd3e6d015564a470fd569d35be09ce3c3eb8990038c2084",
+    "created_at": "2026-11-15T11:00:00Z"
+  },
+  "active_attempt_id": null,
+  "receipt_id": null,
+  "locked": false,
+  "lock_reason": null
+}

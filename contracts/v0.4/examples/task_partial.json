@@ -1,0 +1,43 @@
+{
+  "id": "task_analysis_001",
+  "workspace_id": "ws_demo_001",
+  "kind": "analysis",
+  "context_id": "ctx_demo_001",
+  "state": "succeeded",
+  "outcome": "partial",
+  "cancel_requested": false,
+  "phase": "finished",
+  "progress": {
+    "total": 2,
+    "settled": 2,
+    "succeeded": 1,
+    "failed": 1
+  },
+  "items": [
+    {
+      "candidate_id": "candidate_demo_001",
+      "state": "succeeded",
+      "fact_bundle_id": "facts_demo_001",
+      "assessment_id": "assessment_demo_001",
+      "error_code": null
+    },
+    {
+      "candidate_id": "candidate_demo_002",
+      "state": "failed",
+      "fact_bundle_id": null,
+      "assessment_id": null,
+      "error_code": "PROVIDER_RESULT_UNKNOWN"
+    }
+  ],
+  "result_ids": [
+    "assessment_demo_001"
+  ],
+  "retry_allowed": true,
+  "possible_duplicate_charge": true,
+  "cost_estimate_micro_usd": 40000,
+  "billing_status": "unknown",
+  "next_poll_after_ms": 2000,
+  "error": null,
+  "created_at": "2026-11-15T11:00:00Z",
+  "updated_at": "2026-11-15T11:05:00Z"
+}

@@ -1,0 +1,9 @@
+{
+  "code": "REVISION_CONFLICT",
+  "message": "다른 화면에서 초안이 변경되었습니다.",
+  "retryable": false,
+  "request_id": "request_demo_001",
+  "field_errors": [],
+  "current_revision": 3,
+  "resource_id": "app_demo_001"
+}

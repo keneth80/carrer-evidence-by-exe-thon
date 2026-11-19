@@ -1,0 +1,56 @@
+{
+  "kind": "synthetic_resume_inputs",
+  "real_person": false,
+  "purpose": "실제 입력 파이프라인에서 서로 다른 검색 계획을 생성하는지 확인",
+  "cases": [
+    {
+      "id": "frontend",
+      "pdf": "frontend.synthetic.pdf",
+      "text": "frontend.synthetic.txt",
+      "pdf_sha256": "139febc8c3e6a9aa6ccaae3865a5f206bc31a42d83dbbf90d1d71adda3558098",
+      "text_sha256": "a33d0cce5bafe8f210ed08c3030945cbbfd73dc66793ac53f70b8f5273aa77c3",
+      "page_count": 1,
+      "expected_role_signals": [
+        "React",
+        "TypeScript",
+        "프론트엔드",
+        "Storybook"
+      ],
+      "exclude_from_search": [
+        "frontend@example.com",
+        "가상 지원자 A"
+      ],
+      "must_not_invent": [
+        "Python 개발 경력",
+        "백엔드 API 개발 주도",
+        "성과 개선율"
+      ],
+      "assertion": "검색 계획의 역할과 핵심 기술이 다른 fixture와 구별되어야 함. 부정문 속 기술은 보유 기술로 추출하지 않음."
+    },
+    {
+      "id": "backend",
+      "pdf": "backend.synthetic.pdf",
+      "text": "backend.synthetic.txt",
+      "pdf_sha256": "acc44784cd0b7296ed1ae2aa24ebdd06a7d52ebd123183fa9cc55666e6e90f9d",
+      "text_sha256": "5ca6cf83e5bc971379652b994b4f2ec0e2a819c94c562c26acba868765e269a7",
+      "page_count": 1,
+      "expected_role_signals": [
+        "Python",
+        "FastAPI",
+        "백엔드",
+        "AWS Lambda",
+        "SQS"
+      ],
+      "exclude_from_search": [
+        "backend@example.com",
+        "가상 지원자 B"
+      ],
+      "must_not_invent": [
+        "React 프론트엔드 개발 경력",
+        "비용 절감률",
+        "응답 시간 개선율"
+      ],
+      "assertion": "검색 계획의 역할과 핵심 기술이 다른 fixture와 구별되어야 함. 부정문 속 기술은 보유 기술로 추출하지 않음."
+    }
+  ]
+}

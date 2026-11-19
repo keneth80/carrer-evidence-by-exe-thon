@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "drift_guard": {
+    "mode": "block",
+    "warn_paths": []
+  },
+  "verify": {
+    "typecheck": "npm run -s typecheck",
+    "test": "npm test --silent"
+  },
+  "security": {
+    "exfil": "ask",
+    "config_edits": "ask"
+  },
+  "codemap": {
+    "enabled": false
+  },
+  "backpressure": {
+    "enabled": true
+  },
+  "loop": {
+    "frozen": [
+      "golden/**",
+      "__snapshots__/**",
+      "*.snap",
+      "*.golden",
+      "*.golden.*",
+      "*.approved.*",
+      "fixtures/resumes/expected.json"
+    ]
+  }
+}

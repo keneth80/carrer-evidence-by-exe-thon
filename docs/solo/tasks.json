@@ -1,0 +1,278 @@
+{
+  "version": "0.9",
+  "planning_date": "2026-11-17",
+  "timezone": "Asia/Seoul",
+  "product_contract": "v0.7",
+  "runtime_version": "0.7.0",
+  "execution_mode": "solo_developer",
+  "developer": "개발자",
+  "status_scope": "패키지 초기 상태. 사용자 PC의 실제 진행 상태는 읽은 뒤 갱신한다.",
+  "optional_partner_role": "사용자 검수·자료·데모; 아직 배정하지 않았고 개발 선행 조건 아님",
+  "schedule_basis": "가용시간·최신 안내 확인 전 목표일 없음",
+  "synchronization": "JSON과 Markdown은 자동 동기화되지 않음. 변경 시 둘과 PROGRESS/HANDOFF를 함께 맞춤",
+  "tasks": [
+    {
+      "id": "S01",
+      "phase": "등록·확정",
+      "title": "이력서 등록부터 확정 경력 저장까지",
+      "priority": "P0",
+      "owner": "개발자",
+      "review_requirement": "실제 동작과 관련 검증 근거로 자체 확인; 타인 검토 선택",
+      "optional_reviewer": null,
+      "status": "완료(자체 검증)",
+      "target_date": null,
+      "dependencies": [],
+      "previous_task_ids": [
+        "T03",
+        "T05",
+        "T06",
+        "T07"
+      ],
+      "acceptance": [
+        "텍스트 PDF와 텍스트 붙여넣기가 실제 원본 저장·추출 경로를 통과한다.",
+        "원문 위치와 추출 결과를 화면에서 비교·수정하고 사용자 확인 뒤 사실 revision을 저장한다.",
+        "소유권·추출 실패·명시적 migration·재시작 후 재열람을 확인한다.",
+        "S01만으로 검색 또는 제품 단계 1 전체를 완료 처리하지 않는다."
+      ],
+      "entry": "prompts/solo-start.md",
+      "evidence": [
+        "docs/state/PROGRESS.md#S01 검증 기록 — npm test 36 PASS, typecheck·build·db:check·smoke:http·check:contracts PASS",
+        "tests/resume-intake.test.mjs — 실제 HTTP 등록·추출·확정·소유권 404·재시작 재열람",
+        "tests/migration.test.mjs — v0.4→v0.7 제자리 migration·rollback·drift 거절",
+        "브라우저 관찰(ego-browser) — 업로드→확인·수정→확정→새로고침·재시작 유지, 타 사용자 차단, 실패 안내",
+        "S02(검색·공고 표시) 미구현: 제품 단계 1 전체 완료 아님"
+      ]
+    },
+    {
+      "id": "S02",
+      "phase": "검색",
+      "title": "확정 경력으로 영속 mock 검색과 공고 표시",
+      "priority": "P0",
+      "owner": "개발자",
+      "review_requirement": "실제 동작과 관련 검증 근거로 자체 확인; 타인 검토 선택",
+      "optional_reviewer": null,
+      "status": "완료(자체 검증·mock)",
+      "target_date": null,
+      "dependencies": [
+        "S01"
+      ],
+      "previous_task_ids": [
+        "T08",
+        "T09",
+        "T10"
+      ],
+      "acceptance": [
+        "서로 다른 합성 이력서가 서로 다른 SearchIntent와 추천 설명을 만든다.",
+        "확정 경력·조건 revision에 고정한 작업을 worker가 처리하고 결과를 저장한다.",
+        "중복 요청·만료 lease·지연 결과·재시작·교차 소유권 접근을 검증한다.",
+        "S01과 S02가 연결돼야 기존 단계 1의 완료 기준을 판단한다."
+      ],
+      "entry": "prompts/01-resume-search.md",
+      "evidence": [
+        "docs/state/PROGRESS.md#S02 검증 기록 — npm test 59 PASS(S02 신규 21), check:contracts S01·S02 응답 21 PASS, 브라우저 관찰 PASS, 독립 리뷰 MEDIUM 4·LOW 9 반영. live 검색은 S03"
+      ]
+    },
+    {
+      "id": "S03",
+      "phase": "실연결",
+      "title": "Liner 실제 검색과 출처 확인",
+      "priority": "P0",
+      "owner": "개발자",
+      "review_requirement": "실제 동작과 관련 검증 근거로 자체 확인; 타인 검토 선택",
+      "optional_reviewer": null,
+      "status": "완료",
+      "target_date": null,
+      "dependencies": [
+        "S02"
+      ],
+      "previous_task_ids": [
+        "T02",
+        "T08",
+        "T10"
+      ],
+      "acceptance": [
+        "준비된 키·계정·예산과 사용자의 허용 범위에서 실제 호출 결과·출처·오류 처리를 확인한다.",
+        "mock과 live, 실시간 호출과 이전 결과 재생을 구분한다.",
+        "준비되지 않은 환경은 BLOCKED/NOT_RUN으로 기록하고 가능한 로컬 구현을 이어간다."
+      ],
+      "entry": "prompts/01-resume-search.md",
+      "evidence": [
+        "2026-11-18 Liner 웹 검색 실호출 6건(승인 20건·$10 안), 확인 비용 $0.006, 결과 불명 0, 화면 표시 확인. 공고 원문·요건 수집은 범위 밖"
+      ]
+    },
+    {
+      "id": "S04",
+      "phase": "대화·PDF",
+      "title": "공고별 AI 대화·변경 비교·실제 PDF",
+      "priority": "P0",
+      "owner": "개발자",
+      "review_requirement": "실제 동작과 관련 검증 근거로 자체 확인; 타인 검토 선택",
+      "optional_reviewer": null,
+      "status": "완료(자체 검증·mock 대화)",
+      "target_date": null,
+      "dependencies": [
+        "S02"
+      ],
+      "previous_task_ids": [
+        "T11",
+        "T12",
+        "T13",
+        "T14"
+      ],
+      "acceptance": [
+        "공고 선택→대화→근거 있는 변경안→diff 수용→문서 revision→실제 PDF로 연결한다.",
+        "없는 경력·성과를 추가하지 않고 오래된 제안으로 최신 문서를 덮지 않는다.",
+        "원본·확정 사실·맞춤 이력서·렌더 파일을 구분하고 당시 파일을 재열람한다.",
+        "제품 편집 모델 live 품질과 mock 기능 검증을 분리한다."
+      ],
+      "entry": "prompts/02-chat-resume.md",
+      "evidence": [
+        "docs/state/PROGRESS.md#S04 검증 기록 — npm test 80 PASS(S04 신규 21), check:contracts 응답 38 PASS, 브라우저 관찰 PASS(PDF 글자 누락 결함 발견·수정), 독립 리뷰 HIGH 1·MEDIUM 5·LOW 9 반영. 제품 대화 모델 품질 NOT_RUN"
+      ]
+    },
+    {
+      "id": "S05",
+      "phase": "지원·이력",
+      "title": "Chrome 자체 폼 지원과 제출본 이력",
+      "priority": "P0",
+      "owner": "개발자",
+      "review_requirement": "실제 동작과 관련 검증 근거로 자체 확인; 타인 검토 선택",
+      "optional_reviewer": null,
+      "status": "완료(자체 검증·자체 테스트 폼·Chrome)",
+      "target_date": null,
+      "dependencies": [
+        "S04"
+      ],
+      "previous_task_ids": [
+        "T15",
+        "T16",
+        "T17",
+        "T18"
+      ],
+      "acceptance": [
+        "공고·파일·답변·계정에 맞는 권한으로 입력·첨부·readback·제출을 연결한다.",
+        "클릭과 접수 확인을 구분하고 접수 불명에서 자동 재전송하지 않는다.",
+        "당시 공고·이력서 파일·답변·접수 근거를 이력에서 다시 연다.",
+        "자체 폼 성공을 실제 기업 지원이나 운영 출시 완료로 보고하지 않는다."
+      ],
+      "entry": "prompts/03-browser-history.md",
+      "evidence": [
+        "docs/state/PROGRESS.md#S05 검증 기록 — npm test 98 PASS(S05 신규 18), check:contracts 응답 55 PASS, 임시 프로필 Chrome 자동 검증 PASS(입력·첨부·readback·승인·제출·접수 근거·입력 충돌·전송 중 강제 종료·재시작·390px), 독립 리뷰 MEDIUM 3·LOW 9 중 실질 항목 반영. 사이드 패널 클릭 경로·Ego·외부 기업 사이트 NOT_RUN"
+      ]
+    },
+    {
+      "id": "S06",
+      "phase": "유사 준비",
+      "title": "고정 기준의 유사 공고와 지원서 자동 준비",
+      "priority": "P1",
+      "owner": "개발자",
+      "review_requirement": "실제 동작과 관련 검증 근거로 자체 확인; 타인 검토 선택",
+      "optional_reviewer": null,
+      "status": "완료(자체 검증·mock·제출 없음)",
+      "target_date": null,
+      "dependencies": [
+        "S05"
+      ],
+      "previous_task_ids": [
+        "T19",
+        "T20"
+      ],
+      "acceptance": [
+        "기준 공고·문서·선호 조건을 고정하고 유사 후보를 검색한다.",
+        "중복·조건을 확인하며 필요한 질문은 검토 대기로 보낸다.",
+        "자동 준비 모드에서는 제출이 일어나지 않는다."
+      ],
+      "entry": "prompts/04-similar-jobs.md",
+      "evidence": [
+        "docs/state/PROGRESS.md#S06 검증 기록 — npm test 104 PASS(S06 신규 6), check:contracts 응답 67 PASS, ego 브라우저 화면 테스트 PASS, 독립 리뷰 HIGH 2·MEDIUM 3 반영. 실제 공고 유사도 품질·자동 제출(S07) NOT_RUN"
+      ]
+    },
+    {
+      "id": "S07",
+      "phase": "자동 제출",
+      "title": "정책 안의 자동 지원·중지·불명 처리",
+      "priority": "P1",
+      "owner": "개발자",
+      "review_requirement": "실제 동작과 관련 검증 근거로 자체 확인; 타인 검토 선택",
+      "optional_reviewer": null,
+      "status": "보류",
+      "target_date": null,
+      "dependencies": [
+        "S06"
+      ],
+      "previous_task_ids": [
+        "T21",
+        "T22",
+        "T23",
+        "T24"
+      ],
+      "acceptance": [
+        "사용자가 활성화한 정책의 범위·기간·계정·한도를 전송 직전에 검증한다.",
+        "정책 범위에서는 매건 수동 확인 없이 실행하며 공고마다 별도 권한을 만든다.",
+        "새 질문·추가 인증·지원하지 않는 폼은 예외 상태로 전환한다.",
+        "중지·접수 불명·채널 전환에서 중복과 근거 없는 한도 반환을 막는다."
+      ],
+      "entry": "prompts/05-auto-apply.md",
+      "evidence": []
+    },
+    {
+      "id": "S08",
+      "phase": "데모·인계",
+      "title": "재현 가능한 버전과 데모·제출 자료",
+      "priority": "P0",
+      "owner": "개발자",
+      "review_requirement": "실제 동작과 관련 검증 근거로 자체 확인; 타인 검토 선택",
+      "optional_reviewer": null,
+      "status": "진행중",
+      "target_date": null,
+      "dependencies": [
+        "S03",
+        "S04",
+        "S05"
+      ],
+      "previous_task_ids": [
+        "T02",
+        "T25",
+        "T26",
+        "T27",
+        "T28"
+      ],
+      "acceptance": [
+        "최신 제출 안내를 확인하고 새 환경에서 실제 구현한 흐름을 재현한다.",
+        "기존/신규 개발분·mock/live·자체 폼/실사이트·미완료 기능을 구분한다.",
+        "자동 지원을 완료 기능으로 보여주려면 S06·S07의 실제 검증도 있어야 한다.",
+        "대회 제출 실행과 접수 확인은 당시 요청·계정·확정 범위로 수행한다."
+      ],
+      "entry": "prompts/06-demo-quality.md",
+      "evidence": [
+        "2026-11-18 로컬분: scripts/demo.mjs(새 임시 DB·제출 직전 멈춤), docs/DEMO_RUNBOOK.md, ego 시연 PASS·제출 0건. S03 live·대회 제출 안내·새 PC 재현 NOT_RUN"
+      ]
+    },
+    {
+      "id": "S09",
+      "phase": "실사이트·운영",
+      "title": "실제 기업 지원 제공을 위한 운영 검증",
+      "priority": "출시 전 필수",
+      "owner": "개발자",
+      "review_requirement": "실제 동작과 관련 검증 근거로 자체 확인; 타인 검토 선택",
+      "optional_reviewer": null,
+      "status": "미착수",
+      "target_date": null,
+      "dependencies": [
+        "S05"
+      ],
+      "previous_task_ids": [
+        "T29"
+      ],
+      "acceptance": [
+        "최소 한 실제 사이트의 입력·첨부·문항·접수 관측 범위와 해당 환경 제약을 확인한다.",
+        "운영 사용자 인증·소유권·파일 보관·실패 복구·중복 방지의 실제 연결을 검증한다.",
+        "실제 기업에 보내는 지원은 해당 사용자의 요청·확정 자료·활성 정책 범위를 따른다.",
+        "Ego는 선택할 수 있는 실행 채널이며 Chrome 자체 폼 성공만으로 연동 완료로 표시하지 않는다.",
+        "실사이트 자동 지원 제공 시 S07의 정책·중지·불명 처리를 해당 adapter에서도 검증한다."
+      ],
+      "entry": "docs/BROWSER_ADAPTERS.md",
+      "evidence": []
+    }
+  ]
+}

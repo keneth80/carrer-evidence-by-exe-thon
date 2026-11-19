@@ -1,0 +1,50 @@
+[
+  {
+    "file": "document.json",
+    "definition": "ResumeDocument"
+  },
+  {
+    "file": "facts.json",
+    "definition": "ResumeFactRevision"
+  },
+  {
+    "file": "search_intent.json",
+    "definition": "SearchIntent"
+  },
+  {
+    "file": "job.json",
+    "definition": "JobSnapshot"
+  },
+  {
+    "file": "resume.json",
+    "definition": "ResumeRevision"
+  },
+  {
+    "file": "artifact.json",
+    "definition": "RenderedArtifact"
+  },
+  {
+    "file": "application.json",
+    "definition": "Application"
+  },
+  {
+    "file": "manual_authorization.json",
+    "definition": "ApplicationAuthorization"
+  },
+  {
+    "file": "policy_authorization.json",
+    "definition": "ApplicationAuthorization"
+  },
+  {
+    "file": "policy.json",
+    "definition": "AutoApplyPolicyRevision"
+  },
+  {
+    "file": "unknown_attempt.json",
+    "definition": "SubmissionAttempt"
+  },
+  {
+    "file": "campaign.json",
+    "definition": "SimilarJobCampaign"
+  }
+]

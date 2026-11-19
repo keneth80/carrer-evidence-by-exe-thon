@@ -1,0 +1,58 @@
+{
+  "schema_version": "application.v1",
+  "workspace_id": "ws_demo_001",
+  "application_id": "app_demo_001",
+  "revision": 2,
+  "candidate_id": "candidate_demo_001",
+  "job_key": "a8c7fc98d80cc361f15c386ec4c148d872e793f4248bfed41b88aa74be0097f8",
+  "company_key": "lumino.example",
+  "company_name": "루미노랩",
+  "job_title": "프론트엔드 개발 리드",
+  "context_id": "ctx_demo_001",
+  "profile_id": "profile_demo_001",
+  "profile_revision": 1,
+  "profile_digest": "b5a2c9939750ccf753bc22889299ac5523f82184f0714eefb3b48853264fa76e",
+  "name": "김지원",
+  "email": "jiwon@example.com",
+  "form_session_id": "form_demo_001",
+  "target_origin": "https://career-evidence.example",
+  "form_path": "/demo/apply/app_demo_001",
+  "form_schema_version": "demo-form.v1",
+  "answers": [
+    {
+      "question_id": "experience",
+      "value": "React와 TypeScript로 커머스 주문 화면을 개발하고 공통 컴포넌트와 코드 리뷰를 담당했습니다.",
+      "experience_ids": [
+        "experience_demo_001"
+      ],
+      "source_ids": [],
+      "provenance": "template_grounded",
+      "needs_review": false
+    },
+    {
+      "question_id": "motivation",
+      "value": "협업 서비스의 사용자 경험을 개선하는 데 프론트엔드 개발 경험을 활용하고 싶습니다.",
+      "experience_ids": [
+        "experience_demo_001"
+      ],
+      "source_ids": [
+        "source_demo_001"
+      ],
+      "provenance": "user_edited",
+      "needs_review": true
+    }
+  ],
+  "start_availability": "four_weeks",
+  "file": {
+    "id": "file_demo_001",
+    "filename": "김지원_샘플이력서.pdf",
+    "mime_type": "application/pdf",
+    "byte_size": 1826,
+    "sha256": "e98f3db966cc52153cfb15493f48859a94a14913a1b2cd8a3a8eadaaf9e6a66d",
+    "synthetic": true
+  },
+  "consent": {
+    "test_submission": true,
+    "text_version": "demo-consent.v1"
+  }
+}

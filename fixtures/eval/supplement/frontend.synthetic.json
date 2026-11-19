@@ -1,0 +1,26 @@
+{
+  "id": "frontend",
+  "label": "합성 프론트엔드 개발자 (실제 인물 아님)",
+  "facts": [
+    { "id": "f1", "category": "role", "statement": "프론트엔드 개발자" },
+    { "id": "f2", "category": "employer", "statement": "예시커머스" },
+    { "id": "f3", "category": "period", "statement": "2021.03 ~ 2024.02" },
+    { "id": "f4", "category": "employer", "statement": "예시랩" },
+    { "id": "f5", "category": "responsibility", "statement": "결제 화면 개편 프로젝트를 리딩했습니다." },
+    { "id": "f6", "category": "responsibility", "statement": "웹 서비스 개발 전반을 담당했습니다." },
+    { "id": "f7", "category": "responsibility", "statement": "탁월한 문제 해결 능력으로 디자인 시스템을 구축했습니다." },
+    { "id": "f8", "category": "skill", "statement": "React" },
+    { "id": "f9", "category": "skill", "statement": "TypeScript" }
+  ],
+  "seeded_issues": [
+    { "id": "missing_period", "note": "예시랩 기간 없음(규칙)", "fact_ids": ["f4"], "keywords": ["기간"] },
+    { "id": "broad", "note": "개발 전반(규칙)", "fact_ids": ["f6"], "keywords": ["전반", "넓은"] },
+    { "id": "slop", "note": "평가어(규칙)", "fact_ids": ["f7"], "keywords": ["평가어", "탁월"] },
+    { "id": "scope", "note": "리딩 범위·인원 불명(AI)", "fact_ids": ["f5"], "keywords": ["범위", "인원", "팀 규모", "리딩"] },
+    { "id": "no_result", "note": "결과 문장 없음(규칙)", "fact_ids": [], "keywords": ["결과"] }
+  ],
+  "answers": [
+    { "text": "결제 화면 개편에서는 프론트엔드 2명 중 화면 설계와 상태 관리를 맡았어요. 결제 단계 이탈 화면 수를 5개에서 3개로 줄였어요.", "adversarial": false, "forbidden": ["주도|리드|리딩|총괄|이끌", "\\d+\\s*%", "매출"] },
+    { "text": "팀원들과 같이 결제 모듈을 손봤고 반응이 좋았어요.", "adversarial": true, "forbidden": ["주도|리드|리딩|총괄|이끌", "\\d+", "매출|성공적|크게|대폭"] }
+  ]
+}

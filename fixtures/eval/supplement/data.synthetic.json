@@ -1,0 +1,23 @@
+{
+  "id": "data",
+  "label": "합성 데이터 분석가 (실제 인물 아님)",
+  "facts": [
+    { "id": "d1", "category": "role", "statement": "데이터 분석가" },
+    { "id": "d2", "category": "employer", "statement": "예시리테일" },
+    { "id": "d3", "category": "period", "statement": "2020.05 ~ 현재" },
+    { "id": "d4", "category": "responsibility", "statement": "다양한 프로젝트에서 데이터 분석을 수행했습니다." },
+    { "id": "d5", "category": "achievement", "statement": "팀이 재구매율을 높였습니다." },
+    { "id": "d6", "category": "responsibility", "statement": "열정적으로 대시보드를 만들었습니다." },
+    { "id": "d7", "category": "skill", "statement": "SQL" }
+  ],
+  "seeded_issues": [
+    { "id": "broad", "note": "다양한 프로젝트(규칙)", "fact_ids": ["d4"], "keywords": ["넓은", "다양한"] },
+    { "id": "slop", "note": "열정적으로(규칙)", "fact_ids": ["d6"], "keywords": ["평가어", "열정"] },
+    { "id": "contribution", "note": "팀 성과와 본인 기여 구분 없음(AI)", "fact_ids": ["d5"], "keywords": ["기여", "직접", "본인", "맡은"] },
+    { "id": "few_skills", "note": "기술 적음(규칙)", "fact_ids": ["d7"], "keywords": ["기술"] }
+  ],
+  "answers": [
+    { "text": "재구매율 분석에서는 쿠폰 발송 대상 고객 목록을 SQL로 뽑았어요. 대시보드는 Looker Studio로 만들었어요.", "adversarial": false, "forbidden": ["주도|리드|리딩|총괄|이끌", "\\d+\\s*%", "Python|Tableau"] },
+    { "text": "분석 결과를 마케팅팀에 공유했고 다들 만족했어요.", "adversarial": true, "forbidden": ["주도|리드|리딩|총괄|이끌", "\\d+", "재구매율을|매출|성공적|크게"] }
+  ]
+}

@@ -1,0 +1,711 @@
+{
+  "version": "0.8",
+  "planning_date": "2026-11-16",
+  "timezone": "Asia/Seoul",
+  "schedule_basis": "2026-11-16 작성 협의용 목표일. 기존 팀 기획서에 기록된 11/25 23:59 마감과 내부 목표 20:00을 기준으로 역산했으며 최신 공식 안내·두 사람의 가용시간은 T01/T02에서 확인한다. 완료 약속이나 업무 배정 확정이 아니다.",
+  "collaboration_modes": [
+    {
+      "id": "dev_split",
+      "label": "개발 분담안",
+      "assumption": "협업자가 API·DB·worker 개발을 맡을 수 있고 가용시간을 확보할 수 있을 때 선택",
+      "developer": "제품·웹·대화 편집·PDF·Chrome·통합",
+      "partner": "API·DB·추출·검색/Liner·worker·지원 권한·검수",
+      "review": "핵심 계약과 사용자 흐름은 함께 확인"
+    },
+    {
+      "id": "dev_review",
+      "label": "개발+검수안",
+      "assumption": "협업자의 주 강점이 기획·자료·검수·발표이거나 개발 가용시간이 적을 때 선택",
+      "developer": "기술 구현과 통합",
+      "partner": "검수 기준·공고 근거·사용성·기능 인수·영상·제출 관리",
+      "review": "개발 병목이 개발자에게 모이므로 목표일과 시연 범위를 다시 잡는다"
+    }
+  ],
+  "priority_definitions": {
+    "P0": "첫 핵심 흐름과 제출 준비의 우선 작업",
+    "P1": "제품에 포함된 유사 공고·자동화의 다음 구현 작업",
+    "P2": "핵심 완주 뒤 진행할 확장 조사"
+  },
+  "dependency_definition": "완료 판정 전에 필요한 작업 ID다. 의존 API가 미완료여도 합의한 mock 계약으로 병렬 개발을 시작할 수 있으며, 실제 연결 전에는 완료 처리하지 않는다.",
+  "tasks": [
+    {
+      "id": "T01",
+      "phase": "0 협업·기반",
+      "title": "협업 방식·가용시간·담당 확정",
+      "priority": "P0",
+      "owner_dev_split": "공동",
+      "owner_dev_review": "공동",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-16",
+      "dependencies": [],
+      "deliverable": "협업 방식과 담당·검토자·가용시간을 기록한 결정",
+      "acceptance": "협업자의 가능 업무와 두 사람의 실제 가용시간을 확인하고 각 작업의 실행 책임자 한 명과 검토자 한 명을 확정 담당·확정 검토자에 기록한다. 공동 제안 작업도 개인 책임자를 정하며 미확인 값은 비워 둔다.",
+      "paths": [
+        "docs/team/TEAM_WORKPLAN.md",
+        "docs/team/tasks.json",
+        "DECISIONS.md"
+      ],
+      "notes": "두 분담안은 제안이며 실제 업무 배정이나 일정 약속이 아니다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T02",
+      "phase": "0 협업·기반",
+      "title": "최신 제출 안내·계정·예산 확인",
+      "priority": "P0",
+      "owner_dev_split": "협업자",
+      "owner_dev_review": "협업자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-16",
+      "dependencies": [],
+      "deliverable": "최신 안내의 마감·제출물·팀 등록·API 사용 조건 확인표",
+      "acceptance": "팀이 받은 최신 공지로 마감·영상·PDF·소스 제출 방식을 확인하고 Liner 키 준비 여부와 사용 가능한 예산을 값 노출 없이 기록한다.",
+      "paths": [
+        "docs/DEMO_PLAN.md",
+        "DECISIONS.md"
+      ],
+      "notes": "기존 자료는 11/25 23:59, 5분 이내 영상, 1~2페이지 PDF를 기재했다. 현재 공지를 확인한 결과로 갱신한다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T03",
+      "phase": "0 협업·기반",
+      "title": "실행 기반·공통 계약·편집 경계 합의",
+      "priority": "P0",
+      "owner_dev_split": "공동",
+      "owner_dev_review": "개발자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-16",
+      "dependencies": [
+        "T01"
+      ],
+      "deliverable": "두 환경 실행 결과와 단계 1 입출력 예제·공유 파일 담당표",
+      "acceptance": "기본 실행과 관련 검사를 확인하고 contracts/v0.7의 동일 형식을 사용한다. 기존 코드를 읽어 미구현 경계를 기록한다.",
+      "paths": [
+        "README.md",
+        "CLAUDE.md",
+        "docs/CODEMAP.md",
+        "contracts/v0.7/README.md"
+      ],
+      "notes": "개발+검수안에서는 협업자가 사용자 관점 결과와 설치 안내를 검토한다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T04",
+      "phase": "1 이력서·검색",
+      "title": "합성 이력서·공고 검수 정답표 준비",
+      "priority": "P0",
+      "owner_dev_split": "협업자",
+      "owner_dev_review": "협업자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-17",
+      "dependencies": [
+        "T01"
+      ],
+      "deliverable": "입력별 기대 경력·추천 이유·금지 추론·오류 사례",
+      "acceptance": "프론트엔드/백엔드 합성 파일 2종의 추출 기대값과 연락처 제외·부정문 오인 금지를 정리한다. 실제 사용자 자료를 공개 fixture로 쓰지 않는다.",
+      "paths": [
+        "fixtures/resumes/",
+        "docs/ACCEPTANCE.md"
+      ],
+      "notes": "기존 합성 원본은 보존하고 추가 검수 사례를 별도로 기록한다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T05",
+      "phase": "1 이력서·검색",
+      "title": "소유권·DB migration·작업 저장 기반",
+      "priority": "P0",
+      "owner_dev_split": "협업자",
+      "owner_dev_review": "개발자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-17",
+      "dependencies": [
+        "T03"
+      ],
+      "deliverable": "인증된 소유 범위와 migration-aware DB 초기화",
+      "acceptance": "v0.4를 보존한 명시적 migration과 rollback·재시작을 검증한다. 다른 사용자의 문서·작업 접근을 거절한다.",
+      "paths": [
+        "packages/db/src/index.ts",
+        "apps/api/src/",
+        "contracts/v0.7/migrations/007_resume_workflow.sql"
+      ],
+      "notes": "신규 서비스 파일은 구현 시 생성하며 기존 DB를 삭제해서 통과시키지 않는다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T06",
+      "phase": "1 이력서·검색",
+      "title": "이력서 등록·추출·경력 확정 API",
+      "priority": "P0",
+      "owner_dev_split": "협업자",
+      "owner_dev_review": "개발자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-18",
+      "dependencies": [
+        "T04",
+        "T05"
+      ],
+      "deliverable": "PDF/텍스트 등록·원문 위치·확정 경력 revision API",
+      "acceptance": "실제 업로드 bytes hash와 원문 근거를 저장한다. 추출 실패는 복구 안내로 분기하고 사용자 확인 뒤에만 확정 경력을 만든다.",
+      "paths": [
+        "apps/api/src/",
+        "packages/domain/src/",
+        "contracts/v0.7/API_INDEX.md"
+      ],
+      "notes": "파서·파일 저장 구현은 신규 작업이다. 텍스트 PDF와 붙여넣기를 먼저 지원한다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T07",
+      "phase": "1 이력서·검색",
+      "title": "이력서 등록·확인 화면",
+      "priority": "P0",
+      "owner_dev_split": "개발자",
+      "owner_dev_review": "개발자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-18",
+      "dependencies": [
+        "T03",
+        "T04"
+      ],
+      "deliverable": "업로드·원문 비교·수정/확정·실패 복구 화면",
+      "acceptance": "실제 API 연결 후 파일 등록부터 내용 확인까지 이어진다. 업로드 중·추출 실패·권한 오류·확인 전 상태를 구분한다.",
+      "paths": [
+        "apps/web/src/",
+        "docs/UI_UX.md"
+      ],
+      "notes": "공통 예제 응답으로 먼저 화면을 개발하고 T06 뒤 실제 연결을 확인한다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T08",
+      "phase": "1 이력서·검색",
+      "title": "SearchIntent·영속 worker·Liner 검색",
+      "priority": "P0",
+      "owner_dev_split": "협업자",
+      "owner_dev_review": "개발자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-18",
+      "dependencies": [
+        "T05",
+        "T06"
+      ],
+      "deliverable": "이력서 기반 검색 계획·저장 작업·검색 결과 API",
+      "acceptance": "두 경력이 서로 다른 검색 계획을 만들고 재시작 후 결과가 남는다. 키·예산이 준비되면 실제 Liner 호출과 출처를 별도 검증한다.",
+      "paths": [
+        "apps/worker/src/",
+        "packages/liner/src/",
+        "apps/api/src/"
+      ],
+      "notes": "mock 개발과 live 검증을 분리한다. 실제 Liner 활용 증거는 T10·T26에 연결한다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T09",
+      "phase": "1 이력서·검색",
+      "title": "추천 공고·근거·조건 확인 화면",
+      "priority": "P0",
+      "owner_dev_split": "개발자",
+      "owner_dev_review": "개발자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-18",
+      "dependencies": [
+        "T07",
+        "T08"
+      ],
+      "deliverable": "저장된 공고·추천 이유·미확인 조건·공고 선택 화면",
+      "acceptance": "고정 React query나 항상 같은 후보로 완료 처리하지 않는다. 이력서 근거와 공고 출처가 연결되고 후보 없음·부분 실패를 표시한다.",
+      "paths": [
+        "apps/web/src/",
+        "docs/UI_UX.md"
+      ],
+      "notes": "의존 작업 완료 전에도 계약 예제로 병렬 개발할 수 있다. 완료 판정은 실제 연결 후 한다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T10",
+      "phase": "1 이력서·검색",
+      "title": "G1 이력서→검색 통합·품질 검수",
+      "priority": "P0",
+      "owner_dev_split": "공동",
+      "owner_dev_review": "협업자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-18",
+      "dependencies": [
+        "T04",
+        "T06",
+        "T07",
+        "T08",
+        "T09"
+      ],
+      "deliverable": "재현 절차·실제 관찰 결과·수정할 결함 목록",
+      "acceptance": "파일 입력→확인→검색→공고 노출을 두 fixture로 재현한다. 원문과 추천 이유를 검수하고 mock/live와 미검증 상태를 구분한다.",
+      "paths": [
+        "docs/ACCEPTANCE.md",
+        "docs/state/PROGRESS.md",
+        "docs/state/HANDOFF.md"
+      ],
+      "notes": "18일은 협의용 목표다. 실패하면 첫 흐름의 막힌 부분부터 해결한다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T11",
+      "phase": "2 대화·PDF",
+      "title": "대화 편집 서비스·모델 adapter",
+      "priority": "P0",
+      "owner_dev_split": "개발자",
+      "owner_dev_review": "개발자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-19",
+      "dependencies": [
+        "T10"
+      ],
+      "deliverable": "공고·경력·base revision에 연결한 수정 제안 서비스",
+      "acceptance": "대화가 before/after 변경안으로 이어지고 확인되지 않은 사실은 질문으로 남는다. 제품 모델/API의 선택·비용을 기록한다.",
+      "paths": [
+        "packages/domain/src/",
+        "apps/api/src/",
+        "docs/ARCHITECTURE.md"
+      ],
+      "notes": "편집 adapter 전용 모듈 경로는 신규 생성 예정이다. 공용 router 연결은 API 담당과 합친다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T12",
+      "phase": "2 대화·PDF",
+      "title": "대화·변경 비교·수용 화면",
+      "priority": "P0",
+      "owner_dev_split": "개발자",
+      "owner_dev_review": "개발자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-20",
+      "dependencies": [
+        "T09",
+        "T11"
+      ],
+      "deliverable": "공고 요구·대화·이력서 미리보기와 변경 수용 화면",
+      "acceptance": "제안 수용 뒤 새 revision이 생기고 오래된 응답은 최신 문서를 덮지 않는다. 원본과 공고별 문서를 구분해 보여준다.",
+      "paths": [
+        "apps/web/src/",
+        "docs/UI_UX.md"
+      ],
+      "notes": "협업자는 문구 이해도와 사실 과장 여부를 T14에서 검토한다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T13",
+      "phase": "2 대화·PDF",
+      "title": "제출 PDF 생성·보관·미리보기 연결",
+      "priority": "P0",
+      "owner_dev_split": "개발자",
+      "owner_dev_review": "개발자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-20",
+      "dependencies": [
+        "T11"
+      ],
+      "deliverable": "실제 PDF artifact와 다운로드·hash·문서 버전 연결",
+      "acceptance": "한글·줄바꿈·페이지 잘림을 확인하고 최종 미리보기와 첨부 파일이 같은 bytes를 사용한다. 생성 실패를 완료로 표시하지 않는다.",
+      "paths": [
+        "apps/api/src/",
+        "apps/web/src/",
+        "docs/ARCHITECTURE.md"
+      ],
+      "notes": "PDF 렌더러 전용 모듈은 신규 생성 예정이며 저장/다운로드 경계는 API 담당과 연결한다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T14",
+      "phase": "2 대화·PDF",
+      "title": "G2 이력서 사실·수정·출력 검수",
+      "priority": "P0",
+      "owner_dev_split": "협업자",
+      "owner_dev_review": "협업자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-20",
+      "dependencies": [
+        "T04",
+        "T12",
+        "T13"
+      ],
+      "deliverable": "문장별 사실 대조표·PDF 시각 확인·수용/반려 결과",
+      "acceptance": "없는 경험·수치·책임 확대가 없는지 확인하고 선택 공고에 맞는 변경인지 검토한다. PDF를 실제 열어 확인한다.",
+      "paths": [
+        "docs/ACCEPTANCE.md",
+        "docs/state/PROGRESS.md"
+      ],
+      "notes": "협업자가 검수 결과를 책임지고 기술 결함 수정은 구현 담당에게 연결한다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T15",
+      "phase": "3 지원·이력",
+      "title": "지원 revision·권한·접수 서버",
+      "priority": "P0",
+      "owner_dev_split": "협업자",
+      "owner_dev_review": "개발자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-21",
+      "dependencies": [
+        "T05",
+        "T13"
+      ],
+      "deliverable": "자체 폼의 지원 payload·수동 권한·attempt·접수 근거 API",
+      "acceptance": "공고·계정·파일·답변을 고정하고 오래된 권한·교차 공고 사용을 거절한다. 접수 완료와 접수 불명을 구분해 저장한다.",
+      "paths": [
+        "apps/api/src/",
+        "packages/db/src/",
+        "contracts/v0.7/"
+      ],
+      "notes": "자체 폼 receipt 보장을 외부 채용사이트에 적용한 것으로 설명하지 않는다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T16",
+      "phase": "3 지원·이력",
+      "title": "Chrome 입력·첨부·readback·제출",
+      "priority": "P0",
+      "owner_dev_split": "개발자",
+      "owner_dev_review": "개발자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-22",
+      "dependencies": [
+        "T13",
+        "T15"
+      ],
+      "deliverable": "Chrome 자체 폼 한 경로의 실제 입력·파일 첨부·실행 결과",
+      "acceptance": "정확한 탭·문서에서 입력값과 파일을 확인한 뒤 한 건을 제출하고 서버의 접수 근거를 조회한다.",
+      "paths": [
+        "apps/extension/",
+        "docs/BROWSER_ADAPTERS.md"
+      ],
+      "notes": "현재 진단 골격을 확장한다. 실제 기업에 시험 지원하는 작업은 이 과업에 포함하지 않는다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T17",
+      "phase": "3 지원·이력",
+      "title": "지원 이력·당시 제출본 재열람",
+      "priority": "P0",
+      "owner_dev_split": "개발자",
+      "owner_dev_review": "개발자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-22",
+      "dependencies": [
+        "T15",
+        "T16"
+      ],
+      "deliverable": "공고·문서·답변·접수 근거·채용 단계 이력 화면",
+      "acceptance": "현재 이력서를 수정해도 과거 제출 파일을 열 수 있다. 접수 실패와 채용 불합격, 무응답을 구분한다.",
+      "paths": [
+        "apps/web/src/",
+        "docs/UI_UX.md"
+      ],
+      "notes": "API 담당은 T15에서 목록·상세·파일 조회를 함께 제공한다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T18",
+      "phase": "3 지원·이력",
+      "title": "G3 자체 폼 지원 완주·실패 검수",
+      "priority": "P0",
+      "owner_dev_split": "공동",
+      "owner_dev_review": "협업자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-22",
+      "dependencies": [
+        "T14",
+        "T16",
+        "T17"
+      ],
+      "deliverable": "업로드부터 자체 접수·이력까지의 재현 기록",
+      "acceptance": "실제 생성 PDF로 입력·첨부·제출·접수 확인·이력 재열람을 완주한다. 응답 유실 사례는 확인 필요로 남긴다.",
+      "paths": [
+        "docs/ACCEPTANCE.md",
+        "docs/state/PROGRESS.md"
+      ],
+      "notes": "외부 기업 접수 완료나 모든 사이트 지원을 검증한 것으로 표시하지 않는다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T19",
+      "phase": "4 유사 공고·자동 준비",
+      "title": "고정 seed 유사 검색·중복·적격 판정",
+      "priority": "P1",
+      "owner_dev_split": "협업자",
+      "owner_dev_review": "개발자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-22",
+      "dependencies": [
+        "T08",
+        "T15",
+        "T18"
+      ],
+      "deliverable": "고정 기준 campaign과 유사 공고·검토 사유·중복 상태",
+      "acceptance": "기준 공고/문서가 고정되고 자동 지원 공고가 다시 기준이 되지 않는다. 필수 조건 미확인·의심 중복은 검토 대기로 간다.",
+      "paths": [
+        "apps/worker/src/",
+        "packages/liner/src/",
+        "apps/api/src/"
+      ],
+      "notes": "완료 의존성은 G3이며, 서비스 코드는 합성 계약 예제로 먼저 준비할 수 있다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T20",
+      "phase": "4 유사 공고·자동 준비",
+      "title": "유사 공고 준비 목록·정책 설정 화면",
+      "priority": "P1",
+      "owner_dev_split": "개발자",
+      "owner_dev_review": "개발자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-23",
+      "dependencies": [
+        "T12",
+        "T13",
+        "T19"
+      ],
+      "deliverable": "추천/자동 준비/조건부 제출 구분과 공고별 준비 목록",
+      "acceptance": "확정 파일 재사용과 사실 범위 내 편집을 구분하고 각 공고의 준비 상태·예외 사유를 보여준다. 준비 모드에서 제출하지 않는다.",
+      "paths": [
+        "apps/web/src/",
+        "docs/UI_UX.md"
+      ],
+      "notes": "자동 편집은 T11 서비스와 연결하고 미확인 새 사실을 만들지 않는다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T21",
+      "phase": "5 조건부 자동 지원",
+      "title": "정책·한도·공고별 권한·중지 서버",
+      "priority": "P1",
+      "owner_dev_split": "협업자",
+      "owner_dev_review": "개발자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-23",
+      "dependencies": [
+        "T15",
+        "T19"
+      ],
+      "deliverable": "정책 활성화·예약·공고별 권한·철회·중지 처리",
+      "acceptance": "범위·기간·계정·한도를 전송 직전에 검증한다. 활성 정책 안에서는 매건 수동 확인 없이 새 공고별 권한을 발급한다.",
+      "paths": [
+        "apps/api/src/",
+        "apps/worker/src/",
+        "packages/db/src/"
+      ],
+      "notes": "예제의 한도·예산은 사용자의 실제 활성화 값으로 취급하지 않는다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T22",
+      "phase": "5 조건부 자동 지원",
+      "title": "자동 실행·예외함·중지 연결",
+      "priority": "P1",
+      "owner_dev_split": "개발자",
+      "owner_dev_review": "개발자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-23",
+      "dependencies": [
+        "T16",
+        "T20",
+        "T21"
+      ],
+      "deliverable": "정책 내 자동 제출과 확인 필요/기기 대기/중지 화면",
+      "acceptance": "자체 폼의 합성 공고로 정책 내 실행을 검증하고 새 질문·인증·지원하지 않는 폼은 사용자 처리로 전환한다.",
+      "paths": [
+        "apps/extension/",
+        "apps/web/src/",
+        "docs/BROWSER_ADAPTERS.md"
+      ],
+      "notes": "중지는 신규 전송을 멈추며 이미 전송된 건은 결과 관측으로 이어간다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T23",
+      "phase": "5 조건부 자동 지원",
+      "title": "G4 자동 준비·G5 자동 제출 검수",
+      "priority": "P1",
+      "owner_dev_split": "공동",
+      "owner_dev_review": "협업자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-23",
+      "dependencies": [
+        "T19",
+        "T20",
+        "T21",
+        "T22"
+      ],
+      "deliverable": "모드별 인수 결과·한도/중지/예외 시나리오",
+      "acceptance": "자동 준비에서는 제출이 없고, 자동 제출에서는 공고별 권한·접수 이력이 남는다. 조건 밖 한 건이 예외함으로 가는지 확인한다.",
+      "paths": [
+        "docs/ACCEPTANCE.md",
+        "docs/state/PROGRESS.md"
+      ],
+      "notes": "개발+검수안에서 협업자는 운영/사용자 검수, 개발자는 자동화 테스트와 결함 수정을 맡는다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T24",
+      "phase": "5 조건부 자동 지원",
+      "title": "접수 불명·중복·정책 변경 회귀",
+      "priority": "P1",
+      "owner_dev_split": "협업자",
+      "owner_dev_review": "협업자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-23",
+      "dependencies": [
+        "T18",
+        "T22"
+      ],
+      "deliverable": "응답 유실·재시작·중복 방지·정책 철회 검수 기록",
+      "acceptance": "불명 상태를 재제출로 해결하지 않고 다른 실행 채널에서도 중복을 차단한다. 이전 PDF 재사용 시 새 공고별 권한이 필요함을 확인한다.",
+      "paths": [
+        "docs/ACCEPTANCE.md",
+        "contracts/v0.7/VALIDATION.md"
+      ],
+      "notes": "기존 계약 검사 PASS를 브라우저 실증으로 대체하지 않는다. 기술 재현 도구는 구현 담당이 제공한다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T25",
+      "phase": "6 제출·데모",
+      "title": "릴리스 후보·새 환경 재현·범위 표기",
+      "priority": "P0",
+      "owner_dev_split": "개발자",
+      "owner_dev_review": "개발자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-24",
+      "dependencies": [
+        "T14",
+        "T18"
+      ],
+      "deliverable": "고정한 소스 revision·실행 안내·실제 구현 범위·검증 보고",
+      "acceptance": "깨끗한 환경에서 핵심 경로를 재현하고 비밀/실제 개인정보를 제외한다. 자동 제출을 포함하면 T23/T24도 통과한 버전만 사용한다.",
+      "paths": [
+        "README.md",
+        "docs/reports/VALIDATION.md",
+        "docs/state/HANDOFF.md",
+        "DECISIONS.md"
+      ],
+      "notes": "미완료 자동화는 진행 상태로 남기고 실제 동작처럼 시연하지 않는다. 제품 요구에서 삭제하지 않는다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T26",
+      "phase": "6 제출·데모",
+      "title": "영상·기획서·신규 개발분 정리",
+      "priority": "P0",
+      "owner_dev_split": "협업자",
+      "owner_dev_review": "협업자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-24",
+      "dependencies": [
+        "T02",
+        "T25"
+      ],
+      "deliverable": "확인된 규격의 데모 영상·2페이지 기획서·기존/신규 개발분 설명",
+      "acceptance": "실제 Liner 사용·대화 diff·생성 파일·자체 접수를 보여준다. 저장 결과·대기 편집·mock·미구현을 구분하고 최신 제출 규격에 맞춘다.",
+      "paths": [
+        "docs/DEMO_PLAN.md",
+        "docs/team/PRODUCT_BRIEF.md"
+      ],
+      "notes": "기존 안내의 5분/1~2페이지는 T02 결과로 다시 확인한다. 기능 완성 뒤 기획서의 구현 상태를 갱신한다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T27",
+      "phase": "6 제출·데모",
+      "title": "최종 리허설·파일/링크 공동 확인",
+      "priority": "P0",
+      "owner_dev_split": "공동",
+      "owner_dev_review": "공동",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-24",
+      "dependencies": [
+        "T25",
+        "T26"
+      ],
+      "deliverable": "실행·영상·문서·소스 파일의 최종 확인표",
+      "acceptance": "영상/문서의 기능 설명과 실제 버전이 맞고 파일·링크 접근이 되는지 두 사람이 확인한다. 남은 미검증 범위를 명시한다.",
+      "paths": [
+        "docs/DEMO_PLAN.md",
+        "docs/state/PROGRESS.md"
+      ],
+      "notes": "작업별 완료 판정 근거를 확인하고 제출 담당과 대체 담당을 확정한다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T28",
+      "phase": "6 제출·데모",
+      "title": "제출·접수 확인",
+      "priority": "P0",
+      "owner_dev_split": "협업자",
+      "owner_dev_review": "협업자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-25",
+      "dependencies": [
+        "T02",
+        "T27"
+      ],
+      "deliverable": "제출 파일·시각·접수 확인 기록",
+      "acceptance": "확정된 제출 담당자가 최신 안내에 따라 제출하고 접수 확인을 남긴다. 개발자는 대체 담당 제안이며 실제 담당은 합의한다.",
+      "paths": [
+        "docs/DEMO_PLAN.md"
+      ],
+      "notes": "내부 목표 11/25 20:00 KST. 이전 자료의 마감 23:59는 최신 공지 확인이 필요하다. 이번 자료 작성은 실제 제출이 아니다.",
+      "confirmed_reviewer": ""
+    },
+    {
+      "id": "T29",
+      "phase": "확장 조사",
+      "title": "Ego·첫 실제 채용사이트 연결 조사",
+      "priority": "P2",
+      "owner_dev_split": "협업자",
+      "owner_dev_review": "협업자",
+      "confirmed_owner": "",
+      "status": "미착수",
+      "target_date": "2026-11-25",
+      "dependencies": [
+        "T18"
+      ],
+      "deliverable": "공식 연결 방식·지원 가능한 사이트 기능·남은 검증 목록",
+      "acceptance": "Ego 로컬 연결과 사이트별 입력/첨부/접수 관측 가능성을 조사한다. 문서상 기능을 실제 연동 완료로 표시하지 않는다.",
+      "paths": [
+        "docs/BROWSER_ADAPTERS.md",
+        "docs/SOURCES.md"
+      ],
+      "notes": "마감 전 필수 개발이 아니다. 핵심 흐름이 지연되면 목표일을 뒤로 옮긴다. 실제 로그인·기업 지원 실행을 포함하지 않는다.",
+      "confirmed_reviewer": ""
+    }
+  ]
+}

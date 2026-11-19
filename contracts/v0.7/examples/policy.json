@@ -1,0 +1,28 @@
+{
+  "id": "policy_rev_1",
+  "workspace_id": "ws_demo",
+  "policy_id": "policy_1",
+  "revision": 1,
+  "mode": "submit",
+  "document_strategy": "fixed_document",
+  "fact_revision_id": "facts_1",
+  "seed_resume_revision_id": "resume_1",
+  "fixed_artifact_id": "artifact_1",
+  "conditions": [],
+  "allowed_sites": [
+    "career-evidence-demo-v1"
+  ],
+  "account_binding_ids": [
+    "binding_1"
+  ],
+  "excluded_companies": [],
+  "allowed_edits": [],
+  "daily_limit": 3,
+  "total_limit": 10,
+  "budget_limit_micro_usd": 0,
+  "quota_timezone": "Asia/Seoul",
+  "valid_from": "2026-11-16T07:00:00Z",
+  "expires_at": "2026-11-23T07:00:00Z",
+  "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "created_at": "2026-11-16T07:00:00Z"
+}

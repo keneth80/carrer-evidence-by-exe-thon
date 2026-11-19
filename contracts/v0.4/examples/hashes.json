@@ -1,0 +1,6 @@
+{
+  "canonical_payload_sha256": "18911b608bab152ab9cd378817f687416fb2e67cfbb28da7d691feac8d03ca92",
+  "fixture_pdf_sha256": "e98f3db966cc52153cfb15493f48859a94a14913a1b2cd8a3a8eadaaf9e6a66d",
+  "fixture_pdf_bytes": 1826,
+  "note": "Restricted fixture serialization only; production uses RFC8785."
+}

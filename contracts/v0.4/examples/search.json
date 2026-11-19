@@ -1,0 +1,24 @@
+{
+  "id": "search_demo_001",
+  "workspace_id": "ws_demo_001",
+  "context_id": "ctx_demo_001",
+  "task_id": "task_search_001",
+  "candidates": [
+    {
+      "id": "candidate_demo_001",
+      "search_id": "search_demo_001",
+      "slot": 1,
+      "job_key": "a8c7fc98d80cc361f15c386ec4c148d872e793f4248bfed41b88aa74be0097f8",
+      "company_key": "lumino.example",
+      "company_name": "루미노랩",
+      "title": "프론트엔드 개발 리드",
+      "source_url": "https://careers.lumino.example/jobs/frontend",
+      "snippet": "주 4일 원격 근무, React 5년 이상.",
+      "hiring_status": "unknown",
+      "collected_at": "2026-11-15T11:00:00Z",
+      "provenance": "fixture"
+    }
+  ],
+  "deep_company_key": null,
+  "collected_at": "2026-11-15T11:00:00Z"
+}

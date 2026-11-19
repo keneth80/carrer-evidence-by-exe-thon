@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Career Evidence · 지원 실행기 (개발용)",
+  "version": "0.7.0",
+  "description": "Career Evidence에서 승인한 지원서를 개발용 자체 테스트 폼에 입력·첨부하고 접수 결과를 확인합니다.",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "scripting",
+    "sidePanel",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:4310/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Career Evidence 지원 실행기 열기"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "doc_1",
+  "workspace_id": "ws_demo",
+  "input_kind": "text_pdf",
+  "filename": "synthetic_resume.pdf",
+  "mime_type": "application/pdf",
+  "byte_size": 1024,
+  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "data_origin": "synthetic",
+  "extraction_status": "review_required",
+  "error_code": null,
+  "created_at": "2026-11-16T07:00:00Z"
+}

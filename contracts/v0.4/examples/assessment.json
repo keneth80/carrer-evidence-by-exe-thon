@@ -1,0 +1,24 @@
+{
+  "id": "assessment_demo_001",
+  "workspace_id": "ws_demo_001",
+  "candidate_id": "candidate_demo_001",
+  "context_id": "ctx_demo_001",
+  "fact_bundle_id": "facts_demo_001",
+  "decision": "review",
+  "summary": "명시된 원격 근무 조건을 검토할 수 있습니다.",
+  "evaluations": [
+    {
+      "condition": "원격 근무",
+      "priority": "required",
+      "state": "satisfied",
+      "reason": "주 4일 원격 근무가 명시되어 있습니다.",
+      "reason_code": "REQUIREMENT_MET",
+      "claim_ids": [
+        "claim_remote_001"
+      ],
+      "experience_ids": []
+    }
+  ],
+  "rule_version": "match.v1",
+  "created_at": "2026-11-15T11:00:00Z"
+}

@@ -1,0 +1,350 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createHash, randomUUID } from 'node:crypto';
+import { openDatabase } from '../packages/db/src/index.ts';
+import { readConfig } from '../apps/api/src/config.ts';
+import { routeRequest } from '../apps/api/src/server.ts';
+import { runSearchTask } from '../apps/worker/src/search-task.ts';
+import { createLinerLedger, readLinerUsage } from '../apps/worker/src/liner-ledger.ts';
+import {
+  createLinerWebSearchProvider, companyFromTitle, isJobPosting, linerQueries, toJobDraft, dedupeKey, LINER_SEARCH_URL,
+} from '../packages/liner/src/web-search.ts';
+import { tempFolder, startApi, login, client } from './helpers/s01-harness.mjs';
+import { confirmFixture, createSearch, jobsOf, workerDeps } from './helpers/s02-harness.mjs';
+
+// S03: Liner live 웹 검색 adapter. 실제 네트워크 호출 없이 주입한 가짜 fetch와 합성 응답만 쓴다.
+
+const KEY = 'test-liner-key-must-never-leak-0123456789';
+const sha256 = value => createHash('sha256').update(value).digest('hex');
+
+// 합성 Liner 응답. 공고 페이지·일반 페이지·중복 주소·위험한 주소를 섞었다. 실제 공고가 아니다.
+const SYNTHETIC_RESPONSE = {
+  requestId: 'req_synthetic_1',
+  totalCount: 8,
+  results: [
+    { title: '[합성랩스] 프론트엔드 개발자 채용', url: 'https://www.wanted.co.kr/wd/900001', hostname: 'www.wanted.co.kr', faviconUrl: '', description: 'React와 TypeScript로 웹 서비스를 만드는 프론트엔드 개발자를 찾습니다(합성).', date: '2026-11-01' },
+    { title: '[합성랩스] 프론트엔드 개발자 채용', url: 'https://www.wanted.co.kr/wd/900001#apply', hostname: 'www.wanted.co.kr', faviconUrl: '', description: '중복 주소', date: '2026-11-01' },
+    { title: '주식회사 가상커머스 웹 프론트엔드 엔지니어', url: 'https://careers.virtual-commerce.test/jobs/42', hostname: 'careers.virtual-commerce.test', faviconUrl: '', description: 'Next.js 기반 커머스 화면 개발(합성).', date: '2026-10-28' },
+    { title: 'React 상태 관리 정리', url: 'https://blog.example.test/react-state', hostname: 'blog.example.test', faviconUrl: '', description: '블로그 글', date: '2026-10-01' },
+    { title: '프론트엔드 개발자 모집', url: 'https://www.saramin.co.kr/zf_user/jobs/relay/view?rec_idx=1', hostname: 'www.saramin.co.kr', faviconUrl: '', description: '', date: '2026-11-02' },
+    { title: '채용 공고', url: 'javascript:alert(1)', hostname: '', faviconUrl: '', description: '위험한 주소', date: '2026-11-02' },
+    { title: 'TypeScript 릴리스 노트', url: 'https://news.example.test/ts', hostname: 'news.example.test', faviconUrl: '', description: '기술 뉴스', date: '2026-11-03' },
+    { title: 'Frontend Engineer', url: 'https://www.linkedin.com/in/someone', hostname: 'www.linkedin.com', faviconUrl: '', description: '개인 프로필', date: '2026-11-03' },
+  ],
+};
+
+const json = (body, status = 200, headers = {}) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } });
+
+function fakeFetch(handler) {
+  const calls = [];
+  const fn = async (url, init) => {
+    calls.push({ url, init, body: JSON.parse(init.body) });
+    return handler(calls.length, init);
+  };
+  fn.calls = calls;
+  return fn;
+}
+
+async function liveSetup(prefix) {
+  const { folder, cleanup } = tempFolder(prefix);
+  const api = await startApi(folder);
+  // LINER_MODE=live로 띄운 API와 같다(설정 객체를 서버가 요청마다 참조한다). 키는 API 설정에 들어가지 않는다.
+  api.config.mode = 'live';
+  const http = client(api, await login(api, 'alice'));
+  const { revision } = await confirmFixture(api, http, 'frontend');
+  return { api, http, revision, done: async () => { await api.stop(); cleanup(); } };
+}
+
+function liveWorker(api, fetch, { maxCalls = 20, budgetMicroUsd = 10_000_000, timeoutMs } = {}) {
+  const owner = `worker-${randomUUID()}`;
+  const ledger = createLinerLedger({ db: api.db, owner, now: Date.now, maxCalls, budgetMicroUsd });
+  return workerDeps(api, { owner, provider: createLinerWebSearchProvider({ apiKey: KEY, fetch, ledger, timeoutMs }) });
+}
+
+const ledgerRows = api => api.db.prepare("SELECT * FROM ce7_provider_calls WHERE provider = 'liner' ORDER BY created_at_ms, rowid").all();
+const taskOf = async (http, taskId) => (await http.get(`/api/v1/product-tasks/${taskId}`)).body;
+
+test('live search sends the spec request with the key only in a header and maps job pages as live snapshots', async () => {
+  const env = await liveSetup('s03-success-');
+  try {
+    const { api, http, revision } = env;
+    const search = await createSearch(http, revision.id);
+    assert.equal((await http.get('/api/v1/product-session')).body.capabilities.live_search, true);
+    assert.ok(search.intent.queries.length >= 2, 'fixture has at least two query plans');
+    const fetch = fakeFetch(() => json(SYNTHETIC_RESPONSE));
+    assert.equal(await runSearchTask(liveWorker(api, fetch)), 'succeeded');
+
+    assert.equal(fetch.calls.length, 2, 'at most two queries per search run');
+    fetch.calls.forEach((call, index) => {
+      assert.equal(call.url, LINER_SEARCH_URL);
+      assert.equal(call.init.method, 'POST');
+      assert.deepEqual(call.init.headers, { 'x-api-key': KEY, 'Content-Type': 'application/json' });
+      assert.deepEqual(call.body, { query: `${search.intent.queries[index].query} 채용`, country_code: 'KR', lang: 'ko', date_range: 'past_month', max_results: 10, include_knowledge: false });
+      assert.ok(!call.init.body.includes(KEY), 'key is never in the body');
+      assert.ok(call.init.signal instanceof AbortSignal, 'every call can be aborted');
+    });
+
+    const { search: run, jobs } = await jobsOf(http, search.searchId);
+    assert.equal(run.provider_mode, 'live');
+    assert.equal(run.outcome, 'complete');
+    assert.deepEqual(jobs.map(job => job.canonical_url), [
+      'https://www.wanted.co.kr/wd/900001',
+      'https://careers.virtual-commerce.test/jobs/42',
+      'https://www.saramin.co.kr/zf_user/jobs/relay/view?rec_idx=1',
+    ], 'non-job pages and unsafe urls are dropped; duplicates across results and queries are merged');
+    assert.deepEqual(jobs.map(job => job.company_name), ['합성랩스', '가상커머스', 'www.saramin.co.kr'], 'company only from explicit title wording, otherwise hostname');
+    for (const job of jobs) {
+      assert.equal(job.data_origin, 'live');
+      assert.match(job.job_key, /^liner:[0-9a-f]{32}$/);
+      assert.equal(job.site_id, new URL(job.canonical_url).hostname);
+      assert.deepEqual(job.requirements, []);
+      assert.equal(job.open_status, 'unknown');
+    }
+    assert.equal(jobs[0].content_text, SYNTHETIC_RESPONSE.results[0].description);
+    assert.equal(jobs[2].content_text, '프론트엔드 개발자 모집', 'an empty snippet falls back to the title, never invented text');
+
+    const task = await taskOf(http, search.taskId);
+    assert.equal(task.provider_transmission, 'completed');
+    const rows = ledgerRows(api);
+    assert.equal(rows.length, 2);
+    rows.forEach((row, index) => {
+      assert.equal(row.status, 'succeeded');
+      assert.equal(row.purpose, 'search');
+      assert.equal(row.task_id, search.taskId);
+      assert.equal(row.lease_generation, 1);
+      assert.equal(row.reserved_micro_usd, 2000);
+      assert.equal(row.verified_micro_usd, 1000);
+      assert.equal(row.request_hash, sha256(fetch.calls[index].init.body));
+    });
+    assert.deepEqual(readLinerUsage(api.db), { calls: 2, reserved_micro_usd: 4000, verified_micro_usd: 2000, unknown_calls: 0 });
+    assert.ok(!JSON.stringify(rows).includes(KEY));
+  } finally { await env.done(); }
+});
+
+test('call limit is global: the call past LINER_MAX_CALLS is refused before any fetch', async () => {
+  const env = await liveSetup('s03-calls-');
+  try {
+    const { api, http, revision } = env;
+    const fetch = fakeFetch(() => json(SYNTHETIC_RESPONSE));
+    const deps = () => liveWorker(api, fetch, { maxCalls: 3 });
+    const first = await createSearch(http, revision.id);
+    assert.equal(await runSearchTask(deps(), first.taskId), 'succeeded');
+    assert.equal(fetch.calls.length, 2);
+
+    // 두 번째 사용자도 같은 개발 계정 한도를 쓴다.
+    const bob = client(api, await login(api, 'bob'));
+    const bobRevision = (await confirmFixture(api, bob, 'frontend')).revision;
+    const second = await createSearch(bob, bobRevision.id);
+    assert.equal(await runSearchTask(deps(), second.taskId), 'succeeded');
+    assert.equal(fetch.calls.length, 3, 'only one more call fits under the limit');
+    const partial = (await jobsOf(bob, second.searchId)).search;
+    assert.equal(partial.outcome, 'partial');
+
+    const third = await createSearch(http, revision.id);
+    assert.equal(await runSearchTask(deps(), third.taskId), 'failed');
+    assert.equal(fetch.calls.length, 3, 'refused call never reaches fetch');
+    const task = await taskOf(http, third.taskId);
+    assert.equal(task.error_code, 'LINER_CALL_LIMIT');
+    assert.equal(task.provider_transmission, 'not_dispatched');
+    assert.equal(ledgerRows(api).length, 3);
+  } finally { await env.done(); }
+});
+
+test('budget limit counts conservative reservations and refuses before fetch', async () => {
+  const env = await liveSetup('s03-budget-');
+  try {
+    const { api, http, revision } = env;
+    const fetch = fakeFetch(() => json(SYNTHETIC_RESPONSE));
+    const deps = () => liveWorker(api, fetch, { budgetMicroUsd: 3000 });
+    const first = await createSearch(http, revision.id);
+    assert.equal(await runSearchTask(deps(), first.taskId), 'succeeded');
+    assert.equal(fetch.calls.length, 1, 'second reservation (2000 + 2000) would exceed 3000');
+    assert.equal((await jobsOf(http, first.searchId)).search.outcome, 'partial');
+    const second = await createSearch(http, revision.id);
+    assert.equal(await runSearchTask(deps(), second.taskId), 'failed');
+    assert.equal(fetch.calls.length, 1);
+    assert.equal((await taskOf(http, second.taskId)).error_code, 'LINER_BUDGET_LIMIT');
+    assert.deepEqual(readLinerUsage(api.db), { calls: 1, reserved_micro_usd: 2000, verified_micro_usd: 1000, unknown_calls: 0 });
+  } finally { await env.done(); }
+});
+
+test('401/402/429/400 are definite non-processed failures: Korean message, no retry, no second query', async () => {
+  const env = await liveSetup('s03-4xx-');
+  try {
+    const { api, http, revision } = env;
+    const cases = [[401, 'LINER_UNAUTHORIZED', /키/], [402, 'LINER_INSUFFICIENT_CREDITS', /크레딧/], [429, 'LINER_RATE_LIMITED', /잠시 뒤/], [400, 'LINER_INVALID_REQUEST', /형식/]];
+    for (const [status, code, message] of cases) {
+      const fetch = fakeFetch(() => json({ error: { code: 'X', message: `server echo ${KEY}` }, retryable: true }, status, status === 429 ? { 'retry-after': '1' } : {}));
+      const search = await createSearch(http, revision.id);
+      const deps = liveWorker(api, fetch);
+      assert.equal(await runSearchTask(deps, search.taskId), 'failed');
+      assert.equal(await runSearchTask(deps, search.taskId), 'idle', 'a finished failed task is not run again');
+      assert.equal(fetch.calls.length, 1, `${status}: one request only`);
+      const task = await taskOf(http, search.taskId);
+      assert.equal(task.error_code, code);
+      assert.equal(task.provider_transmission, 'completed');
+      const row = ledgerRows(api).at(-1);
+      assert.equal(row.status, 'failed');
+      assert.equal(row.verified_micro_usd, 0);
+
+      // provider 오류 자체도 한국어 안내이며 키·서버 응답 원문을 담지 않는다.
+      const direct = fakeFetch(() => json({}, status));
+      const provider = createLinerWebSearchProvider({ apiKey: KEY, fetch: direct, ledger: { reserve: () => ({ ok: true, callId: 'c' }), dispatch: () => true, settle: () => {} } });
+      await assert.rejects(provider.search({ queries: search.intent.queries, conditions: [], maxCandidates: 10, call: { workspaceId: 'w', taskId: 't', leaseGeneration: 1 } }), error => {
+        assert.equal(error.code, code);
+        assert.match(error.message, message);
+        assert.ok(!error.message.includes(KEY) && !error.message.includes('server echo'));
+        return true;
+      });
+      assert.equal(direct.calls.length, 1);
+    }
+    assert.ok(!JSON.stringify(api.db.prepare('SELECT * FROM ce7_tasks').all()).includes(KEY));
+  } finally { await env.done(); }
+});
+
+test('network error, timeout, 5xx and unparsable bodies stay unknown and are never retried', async () => {
+  const env = await liveSetup('s03-unknown-');
+  try {
+    const { api, http, revision } = env;
+    const handlers = {
+      network: () => { throw new Error(`connect ECONNRESET with ${KEY}`); },
+      timeout: (_n, init) => new Promise((_resolve, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason))),
+      server500: () => json({ error: { code: 'INTERNAL_ERROR' } }, 500),
+      downstream502: () => json({ error: { code: 'DOWNSTREAM_ERROR' }, retryable: true }, 502),
+      unparsable: () => new Response('not json', { status: 200 }),
+      wrongShape: () => json({ requestId: 'x' }),
+    };
+    for (const [name, handler] of Object.entries(handlers)) {
+      const fetch = fakeFetch(handler);
+      const search = await createSearch(http, revision.id);
+      const deps = liveWorker(api, fetch, { timeoutMs: 50 });
+      assert.equal(await runSearchTask(deps, search.taskId), 'failed', name);
+      assert.equal(await runSearchTask(deps, search.taskId), 'idle');
+      assert.equal(fetch.calls.length, 1, `${name}: sent once, no automatic retry`);
+      const task = await taskOf(http, search.taskId);
+      assert.equal(task.error_code, 'LINER_TRANSMISSION_UNKNOWN', name);
+      assert.equal(task.provider_transmission, 'unknown', name);
+      const row = ledgerRows(api).at(-1);
+      assert.equal(row.status, 'unknown', name);
+      assert.equal(row.verified_micro_usd, null, 'unknown cost is not marked verified');
+    }
+    assert.equal(readLinerUsage(api.db).unknown_calls, Object.keys(handlers).length);
+    const dump = JSON.stringify([api.db.prepare('SELECT * FROM ce7_tasks').all(), ledgerRows(api)]);
+    assert.ok(!dump.includes(KEY), 'key never reaches DB rows even when an error message contains it');
+  } finally { await env.done(); }
+});
+
+test('cancel between queries stops the second paid call; missing call context sends nothing', async () => {
+  const env = await liveSetup('s03-cancel-');
+  try {
+    const { api, http, revision } = env;
+    const search = await createSearch(http, revision.id);
+    const fetch = fakeFetch(() => {
+      api.db.prepare('UPDATE ce7_tasks SET cancel_requested = 1 WHERE id = ?').run(search.taskId);
+      return json(SYNTHETIC_RESPONSE);
+    });
+    assert.equal(await runSearchTask(liveWorker(api, fetch), search.taskId), 'canceled');
+    assert.equal(fetch.calls.length, 1, 'no new paid call after cancel');
+    assert.equal(ledgerRows(api).length, 1);
+    assert.equal((await jobsOf(http, search.searchId)).jobs.length, 0, 'results arriving after cancel are discarded');
+
+    const direct = fakeFetch(() => json(SYNTHETIC_RESPONSE));
+    const provider = createLinerWebSearchProvider({ apiKey: KEY, fetch: direct, ledger: createLinerLedger({ db: api.db, owner: 'x', now: Date.now, maxCalls: 20, budgetMicroUsd: 10_000_000 }) });
+    await assert.rejects(provider.search({ queries: search.intent.queries, conditions: [], maxCandidates: 10 }), { code: 'LINER_CALL_CONTEXT_REQUIRED', transmission: 'not_dispatched' });
+    await assert.rejects(provider.search({ queries: search.intent.queries, conditions: [], maxCandidates: 10, call: { workspaceId: 'w', taskId: search.taskId, leaseGeneration: 99 } }), { code: 'LINER_LEASE_NOT_HELD' });
+    assert.equal(direct.calls.length, 0);
+  } finally { await env.done(); }
+});
+
+test('live 관찰 회귀: 글·일반 채용 안내 제외, 회사명 형식, 사이트 간 중복', () => {
+  // 2026-11-18 Liner 실호출 결과의 제목 형식을 합성 이름으로 옮겼다.
+  assert.equal(isJobPosting('프론트엔드 개발자 자소서 프로젝트 경험 예시와 작성 포인트', new URL('https://career-tips.example.test/cover_letter_article/910')), false);
+  assert.equal(isJobPosting('채용', new URL('https://synthlab.example.test/careers/')), false);
+  assert.equal(isJobPosting('인재채용', new URL('https://synthnara.example.test/careers')), false);
+  assert.equal(isJobPosting('[합성랩] 백엔드 엔지니어 (3~5년) 채용 공고', new URL('https://www.wanted.co.kr/wd/1')), true);
+  assert.equal(isJobPosting('Staff Front-end Engineer (New Product) - Synthpay', new URL('https://startup-board.example.test/ko/jobs/abc')), true);
+  assert.equal(companyFromTitle('합성에이피 - [IT] 백엔드 개발자 경력사원 모집 - 슈퍼인턴'), '합성에이피');
+  assert.equal(companyFromTitle('Software Dev Engineer I, Security Platform - Synthzon US 채용'), 'Synthzon US');
+  assert.equal(companyFromTitle('Staff Front-end Engineer (New Product) - Synthpay'), 'Synthpay');
+  const a = toJobDraft({ title: '[Synthpay Pay] Staff Front-end Engineer (New Product)', url: 'https://www.synthpay.jobs/kr/jobs/1', description: '' });
+  const b = toJobDraft({ title: 'Staff Front-end Engineer (New Product) - Synthpay', url: 'https://startup-board.example.test/ko/jobs/abc', description: '' });
+  const c = toJobDraft({ title: '[다른회사] Staff Front-end Engineer (New Product)', url: 'https://other.example.test/jobs/2', description: '' });
+  assert.equal(dedupeKey(a), dedupeKey(b), 'same posting on two sites');
+  assert.notEqual(dedupeKey(a), dedupeKey(c), 'same title at another company is kept');
+});
+
+test('mapping helpers: job signals, explicit company names, privacy-filtered queries', () => {
+  assert.equal(isJobPosting('아무 제목', new URL('https://www.jobkorea.co.kr/Recruit/GI_Read/1')), true);
+  assert.equal(isJobPosting('Frontend Engineer', new URL('https://www.linkedin.com/jobs/view/1')), true);
+  assert.equal(isJobPosting('Frontend Engineer', new URL('https://www.linkedin.com/in/someone')), false);
+  assert.equal(isJobPosting('백엔드 개발자 공지', new URL('https://recruit.example.test/notice/1')), true);
+  // 실호출(2026-11-18)에서 본 오탐: 직무 없는 회사 채용 안내 페이지는 개별 공고가 아니다.
+  assert.equal(isJobPosting('회사 소개', new URL('https://recruit.example.test/notice/1')), false);
+  assert.equal(isJobPosting('React 팁', new URL('https://blog.example.test/%E0%A4%A')), false, 'malformed path encoding does not throw');
+  assert.equal(companyFromTitle('[채용] 프론트엔드 개발자'), null, 'generic brackets are not company names');
+  assert.equal(companyFromTitle('(주)합성소프트 백엔드 개발자'), '합성소프트');
+  assert.equal(companyFromTitle('합성모빌리티 채용 - 웹 개발'), '합성모빌리티');
+  assert.equal(companyFromTitle('개발자 채용'), null);
+  assert.equal(toJobDraft({ title: '채용', url: 'mailto:a@b.test', description: '' }), null);
+  assert.deepEqual(linerQueries([
+    { query: '연락처: 010-1234-5678 React', fact_ids: ['f1'] },
+    { query: '프론트엔드 개발자 React', fact_ids: ['f2'] },
+    { query: 'Next.js 채용', fact_ids: ['f3'] },
+    { query: 'Storybook', fact_ids: ['f4'] },
+  ]), ['프론트엔드 개발자 React 채용', 'Next.js 채용'], 'contact info is never sent, at most two queries, 채용 is not repeated');
+});
+
+test('config: live needs key and both caps, errors never echo the key; mock default is unchanged', async () => {
+  const live = { LINER_MODE: 'live', LINER_API_KEY: KEY, LINER_MAX_CALLS: '20', LINER_BUDGET_MICRO_USD: '10000000' };
+  const config = readConfig(live);
+  assert.equal(config.mode, 'live');
+  assert.deepEqual(config.liner, { maxCalls: 20, budgetMicroUsd: 10_000_000 });
+  assert.ok(!JSON.stringify(config).includes(KEY), 'the key is not kept in the config object');
+  const invalid = [
+    [{ ...live, LINER_API_KEY: undefined }, /LINER_API_KEY_REQUIRED/],
+    [{ ...live, LINER_API_KEY: '   ' }, /LINER_API_KEY_REQUIRED/],
+    [{ ...live, LINER_MAX_CALLS: undefined }, /LINER_MAX_CALLS_INVALID/],
+    [{ ...live, LINER_MAX_CALLS: '0' }, /LINER_MAX_CALLS_INVALID/],
+    [{ ...live, LINER_MAX_CALLS: '1.5' }, /LINER_MAX_CALLS_INVALID/],
+    [{ ...live, LINER_MAX_CALLS: 'abc' }, /LINER_MAX_CALLS_INVALID/],
+    [{ ...live, LINER_BUDGET_MICRO_USD: undefined }, /LINER_BUDGET_INVALID/],
+    [{ ...live, LINER_BUDGET_MICRO_USD: '0' }, /LINER_BUDGET_INVALID/],
+    [{ ...live, LINER_MODE: 'real' }, /LINER_MODE_INVALID/],
+  ];
+  for (const [env, pattern] of invalid) {
+    assert.throws(() => readConfig(env), error => pattern.test(error.message) && !error.message.includes(KEY));
+  }
+  const mock = readConfig({ LINER_MAX_CALLS: '0', LINER_BUDGET_MICRO_USD: '0' });
+  assert.equal(mock.mode, 'mock');
+  assert.equal(mock.liner, null);
+
+  const db = openDatabase(':memory:');
+  try {
+    assert.equal((await routeRequest('GET', '/api/health', db)).body.live_search, 'mock');
+    const liveHealth = (await routeRequest('GET', '/api/health', db, 'live')).body;
+    assert.equal(liveHealth.live_search, 'implemented_liner_web');
+    assert.equal(liveHealth.mode, 'live');
+  } finally { db.close(); }
+
+  const example = readFileSync(new URL('../.env.example', import.meta.url), 'utf8');
+  assert.match(example, /^LINER_MAX_CALLS=0$/m);
+  assert.match(example, /^LINER_API_KEY=$/m, '.env.example names the key without a value');
+});
+
+test('mock mode stays the default: mock search runs never call fetch and keep synthetic labels', async () => {
+  const { folder, cleanup } = tempFolder('s03-mock-');
+  const api = await startApi(folder);
+  try {
+    const user = await login(api, 'alice');
+    const http = client(api, user);
+    assert.equal((await http.get('/api/v1/product-session')).body.capabilities.live_search, false);
+    const { revision } = await confirmFixture(api, http, 'frontend');
+    const search = await createSearch(http, revision.id);
+    assert.equal(await runSearchTask(workerDeps(api)), 'succeeded');
+    const { search: run, jobs } = await jobsOf(http, search.searchId);
+    assert.equal(run.provider_mode, 'mock');
+    assert.ok(jobs.length > 0 && jobs.every(job => job.data_origin === 'synthetic'));
+    assert.equal(ledgerRows(api).length, 0);
+  } finally { await api.stop(); cleanup(); }
+});

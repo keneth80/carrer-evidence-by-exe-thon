@@ -1,0 +1,83 @@
+/* S05 지원 이력·지원서 제출·자체 테스트 폼 화면. 기존 panel·state-pill·artifact-meta 스타일을 이어 쓴다. */
+.apply-page .panel + .panel{margin-top:14px}
+.apply-list{list-style:none;padding:0;margin:0}
+.apply-list li{border-top:1px solid #ecf0f1;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.apply-list li:first-child{border-top:0}
+.apply-list a,.apply-list li>div{display:grid;gap:4px;padding:12px 0;text-decoration:none;flex:1;min-width:0}
+.apply-list a:hover strong{text-decoration:underline}
+.apply-list strong{font-size:15px;overflow-wrap:anywhere}
+.apply-list a .state-pill{justify-self:start}
+.compact-list li>div{padding:8px 0}
+.state-pill.submission-prepared,.state-pill.submission-submitted{background:#e6f4eb;color:#347454}
+.state-pill.submission-queued,.state-pill.submission-running{background:#e8eefb;color:#3c5a92}
+.state-pill.submission-waiting_user,.state-pill.submission-submission_unknown{background:#fff3dc;color:#906722}
+.state-pill.submission-not_submitted{background:#f2e8e6;color:#925c51}
+.hero .state-pill{margin-right:8px}
+.inline-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
+.inline-grid label,.stack-field{display:grid;gap:6px;font-size:13px;font-weight:650}
+.inline-grid input,.inline-grid select,.stack-field input,.stack-field textarea{border:1px solid #c8d9d8;border-radius:7px;padding:10px 12px;background:#fff;width:100%;font-weight:400}
+.stack-field textarea{resize:vertical;min-height:96px}
+.inline-grid .wide{grid-column:1/-1}
+.answer-fields{display:grid;gap:14px;margin:14px 0}
+.answer-fields .check{display:flex;gap:8px;align-items:center;font-size:14px}
+.issue-list{margin:6px 0 10px;padding-left:20px;color:#906722;font-size:13px}
+.steps{padding-left:20px;font-size:14px;line-height:1.8}
+.verify-box{display:grid;gap:4px;border-radius:8px;padding:14px 16px;font-size:13px;margin-top:10px}
+.verify-box.ok{background:#e9f5ee;color:#2f6a4c}
+.verify-box.warn{background:#fff6e5;color:#7d5a1d}
+.verify-box ul{margin:4px 0 0;padding-left:18px}
+.warn-notice{background:#fff6e5;border-color:#f0dfba;color:#7d5a1d;margin-top:10px}
+.answer-text{white-space:pre-wrap}
+.ok-text{color:#2f6a4c;font-size:14px;font-weight:650}
+.warn-text{color:#8b4729;font-size:14px;font-weight:650}
+.evidence-list{list-style:none;padding:0;margin:10px 0 0;display:grid;gap:10px}
+.evidence-list li{display:grid;gap:3px;border-left:3px solid #55a296;background:#f6f9f8;padding:10px 12px;font-size:13px;overflow-wrap:anywhere}
+.attempt-record{border:1px solid #e3ebec;border-radius:8px;padding:12px 14px;margin-top:10px}
+.attempt-record summary{cursor:pointer;font-size:14px}
+.attempt-record .artifact-meta{margin-top:12px}
+.attempt-record .artifact-meta dt{min-width:110px}
+.job-snapshot{margin:8px 0;font-size:13px}
+.job-snapshot pre{white-space:pre-wrap;background:#f6f8f8;border-radius:6px;padding:12px;font-family:inherit;font-size:12px}
+.pairing-code{display:grid;gap:4px;background:#f1f7f6;border:1px dashed #8bbcb4;border-radius:8px;padding:14px 16px;margin:12px 0;font-size:13px}
+.pairing-code strong{font-size:28px;letter-spacing:.12em;color:#175458;font-variant-numeric:tabular-nums}
+details.muted ol{padding-left:20px}
+/* 자체 테스트 폼(사이트) */
+.self-site{max-width:760px}
+.self-site-head{padding:24px 0 16px}
+.self-site-head h1{font-size:30px;margin:10px 0 4px;letter-spacing:-.8px}
+.self-site-head p{margin:0;color:#566f79;font-size:16px}
+.self-site-list{display:grid;gap:8px;padding-left:20px}
+.self-site-form{background:#fff;border:1px solid #dce6e7;border-radius:10px;margin-top:18px;padding:22px}
+.self-site-form fieldset{border:0;padding:0;margin:0;display:grid;gap:16px}
+.self-site-form label{display:grid;gap:6px;font-size:13px;font-weight:650}
+.self-site-form input:not([type=checkbox]),.self-site-form textarea{width:100%;border:1px solid #c8d9d8;border-radius:7px;padding:10px 12px;background:#fff;font-weight:400}
+.self-site-form .check-field{display:flex;align-items:center;gap:8px;flex-direction:row-reverse;justify-content:flex-end}
+.self-site-receipt{background:#fff;border:1px solid #b9dcc8;border-radius:10px;margin-top:18px;padding:22px}
+.self-site-receipt h2{margin:0 0 12px;color:#2f6a4c}
+.self-site-receipt dl{display:grid;gap:6px;font-size:14px;margin:0}
+.self-site-receipt dl div{display:flex;gap:14px}
+.self-site-receipt dt{min-width:90px;color:#7b8f95}
+.self-site-receipt dd{margin:0;overflow-wrap:anywhere}
+.self-site-receipt .hash{font-size:12px}
+@media(max-width:800px){.inline-grid{grid-template-columns:1fr}.apply-list li{align-items:flex-start;flex-direction:column;gap:0}.attempt-record .artifact-meta div,.self-site-receipt dl div{flex-direction:column;gap:0}}
+/* S06 유사 공고 설정·대기함 */
+.outline.fit{width:auto;display:inline-flex;margin-top:4px}
+.choice-group{border:0;padding:0;margin:0 0 14px;display:grid;gap:8px}
+.choice-group legend{font-size:13px;font-weight:700;margin-bottom:6px}
+.choice-group .check{display:flex;gap:8px;align-items:center;font-size:14px}
+.sub-title{font-size:15px;margin:18px 0 8px}
+.queue-card{border-top:1px solid #ecf0f1;padding:14px 0;display:grid;gap:8px}
+.queue-card:first-of-type{border-top:0}
+.queue-card header{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.queue-card header strong{font-size:15px}
+.queue-card .score{font-size:12px;color:#3c5a92;font-weight:700}
+.state-pill.queue-prepared{background:#e6f4eb;color:#347454}
+.state-pill.queue-needs_review{background:#fff3dc;color:#906722}
+.state-pill.queue-eligible{background:#e8eefb;color:#3c5a92}
+.state-pill.queue-skipped{background:#f1f4f5;color:#7b8f95}
+.reason-list,.note-list{margin:0;padding-left:18px;font-size:13px;display:grid;gap:2px}
+.reason-list .hit{color:#2f6a4c}
+.reason-list .miss{color:#7b8f95}
+.note-list{color:#607684}
+.panel h2 .count{font-size:13px;color:#6e8889;margin-left:6px}
+.primary.small{padding:8px 12px;font-size:13px}

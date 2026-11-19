@@ -1,0 +1,37 @@
+{
+  "id": "facts_demo_001",
+  "candidate_id": "candidate_demo_001",
+  "task_id": "task_analysis_001",
+  "sources": [
+    {
+      "id": "source_demo_001",
+      "url": "https://careers.lumino.example/jobs/frontend",
+      "title": "루미노랩 가상 채용공고",
+      "kind": "fixture",
+      "published_date": null,
+      "retrieved_at": "2026-11-15T11:00:00Z",
+      "retrieval_method": "fixture",
+      "excerpt": "주 4일 원격 근무, React 5년 이상."
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim_remote_001",
+      "field": "remote_policy",
+      "state": "known",
+      "value": "주 4일 원격",
+      "reason": null,
+      "evidence": [
+        {
+          "source_id": "source_demo_001",
+          "quote": "주 4일 원격 근무",
+          "link_check": "matched_to_chunk"
+        }
+      ]
+    }
+  ],
+  "quality": "structured",
+  "provenance": "fixture",
+  "observed_at": "2026-11-15T11:00:00Z",
+  "normalizer_version": "normalizer.v1"
+}

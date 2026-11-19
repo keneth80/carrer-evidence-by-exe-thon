@@ -1,0 +1,49 @@
+/* S02 검색 조건·결과 화면. 기존 style.css·resume.css의 색·간격을 따른다. */
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.search-setup{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:16px;margin-top:16px;align-items:start}
+.chip-list{list-style:none;padding:0;margin:0 0 10px;display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12px;font-weight:650;border-radius:14px;padding:4px 10px;background:#eef3f4;color:#3f5a62;overflow-wrap:anywhere}
+.chip.role{background:#e8eefb;color:#3c5a92}
+.chip.used{outline:2px solid #4a8e88}
+.condition-form{border:0;padding:0;margin:0;display:grid;gap:12px;min-width:0}
+.condition-form legend{font-size:18px;font-weight:700;margin-bottom:10px;padding:0}
+.condition-row{display:grid;grid-template-columns:120px minmax(0,1fr) auto;gap:10px;align-items:center}
+.condition-row label:first-child,.condition-label{font-size:13px;font-weight:650}
+.condition-row input[type=text],.condition-row input:not([type]),.condition-row input[inputmode]{border:1px solid #c8d9d8;border-radius:7px;padding:9px 11px;min-width:0;width:100%}
+.condition-row select{padding:8px 30px 8px 10px;font-size:13px}
+.choice-group{display:flex;gap:12px;flex-wrap:wrap}
+.basis{margin-top:16px}
+.basis p{font-size:13px;margin:0 0 8px;overflow-wrap:anywhere}
+.basis details{font-size:13px;margin-top:8px}
+.basis summary{cursor:pointer;font-weight:650;color:#256d66}
+.query-list{margin:8px 0;padding-left:18px;display:grid;gap:4px}
+.query-list code{background:#f1f5f5;border-radius:4px;padding:1px 6px;overflow-wrap:anywhere}
+.job-grid.results{margin-top:8px}
+.job-card.result h3{margin:12px 0 6px}
+.job-attributes{list-style:none;padding:0;margin:0 0 6px;display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;color:#4f666e}
+.job-attributes li.unknown{color:#9aa9ae}
+.card-section{border-top:1px solid #ecf0f1;padding-top:10px;margin-top:10px}
+.card-section h4{font-size:12px;letter-spacing:.06em;color:#26736b;margin:0 0 6px}
+.card-section ul{margin:0;padding-left:16px;display:grid;gap:4px;font-size:13px;color:#355965}
+.card-section p{margin:0}
+.job-card.result .fine-print{font-size:11px;margin:12px 0}
+.job-card.result .outline{margin-top:auto}
+.state-tag{font-size:11px;font-weight:700;border-radius:4px;padding:1px 6px;background:#f1f4f5;color:#4f666e;white-space:nowrap}
+.check-item.unmet .state-tag{background:#f2e8e6;color:#925c51}
+.check-item.unknown .state-tag,.check-item.no_evidence .state-tag{background:#fff3dc;color:#906722}
+.check-item.met .state-tag{background:#e6f4eb;color:#347454}
+.compare-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;margin-top:12px}
+.compare-grid h3{font-size:14px;margin:14px 0 8px}
+.requirement-list{list-style:none;padding:0;margin:0;display:grid;gap:8px;font-size:13px}
+.requirement-list li{border:1px solid #e3eaeb;border-radius:8px;padding:8px 10px}
+.requirement-list li.linked{border-color:#cfe6d7;background:#f4faf6}
+.requirement-list li.missing{border-color:#f0e2c6;background:#fffaf0}
+.job-content{white-space:pre-wrap;font:inherit;font-size:13px;line-height:1.7;background:#f7faf9;border-radius:8px;padding:12px;margin:0;max-height:320px;overflow:auto}
+.action-row{display:flex;justify-content:flex-end;margin-top:16px}
+.empty-state{display:grid;gap:6px;margin-top:8px}
+@media(max-width:800px){
+  .search-setup,.compare-grid{grid-template-columns:1fr}
+  .condition-row{grid-template-columns:1fr auto}
+  .condition-row>label:first-child,.condition-row>.condition-label{grid-column:1/-1}
+  .action-row button{width:100%}
+}

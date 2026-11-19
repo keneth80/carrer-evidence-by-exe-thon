@@ -1,0 +1,13 @@
+{
+  "kind": "synthetic_resume_docx_inputs",
+  "real_person": false,
+  "note": "expected.json은 동결 정답 자료라 DOCX 합성 입력의 hash는 이 파일에 둔다. 내용은 frontend.synthetic.txt와 같다.",
+  "cases": [
+    {
+      "id": "frontend",
+      "docx": "frontend.synthetic.docx",
+      "docx_sha256": "42c24576109a4ef63965738b980aa960e9930c5546f851d0f9cb1a04dad1d133",
+      "same_text_as": "frontend.synthetic.txt"
+    }
+  ]
+}

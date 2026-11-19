@@ -1,0 +1,113 @@
+/* S04 맞춤 편집·최종 제출본 화면. 기존 style.css·resume.css·search.css의 색·간격을 따른다. */
+.tailor-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin:18px 0 12px}
+.tailor-head h1{font-size:clamp(22px,3vw,30px);margin:8px 0 0;letter-spacing:-.6px}
+.tailor-status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px}
+.state-pill{font-size:11px;font-weight:700;border-radius:12px;padding:3px 10px;background:#eef3f4;color:#4f666e;white-space:nowrap}
+.state-pill.proposed{background:#e8eefb;color:#3c5a92}
+.state-pill.accepted{background:#e6f4eb;color:#347454}
+.state-pill.rejected{background:#f1f4f5;color:#7b8f95}
+.state-pill.stale{background:#fff3dc;color:#906722}
+.tailor-tabs{display:none;gap:6px;margin-bottom:10px}
+.tailor-tabs button{flex:1;border:1px solid #d5e3e1;background:#fff;border-radius:7px;padding:9px;font-weight:650;color:#2b5f66}
+.tailor-tabs button[aria-pressed=true]{background:#175458;color:#fff;border-color:#175458}
+.tailor-grid{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.25fr) minmax(0,1fr);gap:14px;align-items:start}
+.tailor-grid>.panel{padding:18px}
+.pane-job,.pane-preview{position:sticky;top:12px;max-height:calc(100vh - 140px);overflow:auto}
+.req-list{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:8px}
+.req{display:grid;gap:4px;text-align:left;width:100%;border:1px solid #e3eaeb;background:#fff;border-radius:8px;padding:9px 10px;font-size:13px;color:#2c4148}
+.req.linked{border-color:#cfe6d7}
+.req.missing{background:#fffaf0;border-color:#f0e2c6;cursor:default}
+.req.weak{background:#fffdf6;border-color:#eadfb8}
+.req.active{outline:2px solid #4a8e88;background:#f4faf6}
+.chat{display:flex;flex-direction:column;gap:10px;min-height:420px}
+.chat-log{display:grid;gap:10px;max-height:62vh;overflow:auto;padding-right:4px}
+.chat-empty{background:#f7faf9;border-radius:8px;padding:12px;font-size:13px;color:#4f666e}
+.bubble-row{display:grid;gap:8px}
+.bubble{max-width:88%;border-radius:12px;padding:9px 12px;font-size:14px;line-height:1.6}
+.bubble p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.bubble.user{justify-self:end;background:#175458;color:#fff}
+.bubble.assistant{justify-self:start;background:#f1f5f5;color:#24383f}
+.bubble-label{display:block;font-size:10px;font-weight:700;letter-spacing:.06em;color:#6e8889;margin-bottom:2px}
+.proposal{border:1px solid #d5e3e1;border-radius:10px;padding:12px;background:#fff;display:grid;gap:8px}
+.proposal.stale{border-color:#f0e2c6;background:#fffcf5}
+.proposal.rejected{opacity:.65}
+.proposal-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px}
+.change-list{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+.change-list li{display:flex;gap:8px;align-items:flex-start}
+.change-list input{margin-top:4px}
+.change-body{display:grid;gap:4px;font-size:13px;min-width:0;flex:1}
+.change-head{display:flex;gap:6px;align-items:center}
+.change-body p{margin:0;overflow-wrap:anywhere}
+.before{color:#925c51;text-decoration:line-through;background:#fbf1ef;border-radius:5px;padding:4px 7px}
+.after{color:#22553b;background:#eef8f1;border-radius:5px;padding:4px 7px}
+.reason{color:#4f666e}
+.evidence-line{font-size:12px;color:#6e8889}
+.questions{margin:0;padding-left:18px;font-size:13px;color:#906722}
+.fact-confirm{background:#fff8e8;border-radius:8px;padding:10px;display:grid;gap:8px;font-size:13px}
+.fact-confirm p{margin:0}
+.fact-confirm select{padding:6px 28px 6px 8px;font-size:12px;margin-left:6px}
+.stale-note{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;color:#906722}
+.proposal-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.suggestions{display:flex;gap:6px;flex-wrap:wrap}
+.chip-button{border:1px solid #d5e3e1;background:#fff;border-radius:14px;padding:5px 10px;font-size:12px;color:#2b5f66}
+.chip-button:hover{background:#f1f6f5}
+.chat-input{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}
+.chat-input textarea{min-height:64px;border:1px solid #c8d9d8;border-radius:8px;padding:10px;resize:vertical;font-size:14px}
+.resume-preview{display:grid;gap:12px;font-size:13px}
+.resume-preview h3{font-size:13px;margin:0 0 6px;padding-bottom:4px;border-bottom:1px solid #dce6e7;color:#175458}
+.resume-preview ul{margin:0;padding-left:16px;display:grid;gap:4px}
+.resume-preview li{line-height:1.6;border-radius:4px;padding:1px 4px;overflow-wrap:anywhere}
+.resume-preview li.linked{background:#ffe8a3}
+.resume-preview li.changed{background:#eef8f1}
+.resume-preview .tag{margin-left:6px}
+.history{margin-top:12px;font-size:12px}
+.history summary{cursor:pointer;font-weight:650;color:#256d66}
+.history ul{list-style:none;padding:0;margin:6px 0 0;display:grid;gap:4px}
+.history li{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.final-page .checks ul{margin:0;padding-left:0;list-style:none;display:grid;gap:6px;font-size:13px}
+.final-page .checks li{padding:6px 10px;border-radius:6px;background:#f6f9f9}
+.final-page .checks li.ok{background:#eef8f1;color:#2f6a4c}
+.final-page .checks li.warn{background:#fff3dc;color:#7a5717}
+.final-page .checks li.info{background:#eef3f4;color:#4f666e}
+.final-page .panel{margin-top:14px}
+.confirm-check{margin-top:14px;font-size:14px}
+.artifact-meta{display:grid;gap:4px;font-size:13px;margin:0 0 10px}
+.artifact-meta div{display:flex;gap:14px}
+.artifact-meta dt{min-width:70px;color:#7b8f95}
+.artifact-meta dd{margin:0;overflow-wrap:anywhere}
+.final-page .action-row{justify-content:flex-start;gap:8px;flex-wrap:wrap}
+.final-page .action-row a.outline{width:auto;text-decoration:none}
+.pdf-frame{width:100%;height:78vh;border:1px solid #dce6e7;border-radius:8px;margin-top:12px;background:#fff}
+@media(max-width:900px){
+  .tailor-tabs{display:flex}
+  .tailor-grid{grid-template-columns:1fr}
+  .pane-job,.pane-preview{position:static;max-height:none}
+  .tailor.tab-job .pane-chat,.tailor.tab-job .pane-preview,
+  .tailor.tab-chat .pane-job,.tailor.tab-chat .pane-preview,
+  .tailor.tab-preview .pane-job,.tailor.tab-preview .pane-chat{display:none}
+  .chat-log{max-height:none}
+  .bubble{max-width:100%}
+  .pdf-frame{height:60vh}
+}
+/* 하단 고정 바(최종 제출본 확인)에 버튼이 가리지 않도록 스크롤 위치에 여백을 둔다. */
+.proposal-actions,.fact-confirm,.chat-input,.stale-note{scroll-margin-bottom:110px}
+.tailor{padding-bottom:12px}
+
+/* JD 맞춤 점검(S1-18): 요구사항 점검표·점검 요청 버튼 */
+.jd-cta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.jd-cta .muted{font-size:12px;flex:1;min-width:180px}
+.jd-check{display:grid;gap:8px;margin-top:8px}
+.jd-check-head{margin:0;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:13px}
+.jd-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.jd-item{background:#fff;border:1px solid #dce6e7;border-left-width:4px;border-radius:8px;padding:8px 10px;display:grid;gap:4px;font-size:13px}
+.jd-item.met{border-left-color:#2f8f5b}
+.jd-item.weak{border-left-color:#c98a12}
+.jd-item.missing{border-left-color:#8a97a0}
+.jd-item-head{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
+.jd-req{flex:1;min-width:160px;font-weight:600}
+.jd-status{font-size:12px;font-weight:700;border-radius:10px;padding:1px 8px;background:#eef2f3;color:#3d4d55}
+.jd-status.met{background:#e3f3ea;color:#1f6b42}
+.jd-status.weak{background:#fbf0d9;color:#7a5408}
+.jd-status.missing{background:#eceff1;color:#4b5a62}
+.jd-evidence{margin:0;font-size:12px;overflow-wrap:anywhere}
+.jd-question{font-size:13px;color:#355965;display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}

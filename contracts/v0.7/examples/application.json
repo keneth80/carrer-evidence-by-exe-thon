@@ -1,0 +1,20 @@
+{
+  "id": "application_1",
+  "workspace_id": "ws_demo",
+  "job_key": "demo:job_001",
+  "current": {
+    "application_id": "application_1",
+    "revision": 1,
+    "job_snapshot_id": "job_1",
+    "resume_revision_id": "resume_1",
+    "artifact_id": "artifact_1",
+    "artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "answers": [],
+    "payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "created_at": "2026-11-16T07:00:00Z"
+  },
+  "submission_state": "draft",
+  "recruitment_stage": "unknown",
+  "created_at": "2026-11-16T07:00:00Z",
+  "updated_at": "2026-11-16T07:00:00Z"
+}

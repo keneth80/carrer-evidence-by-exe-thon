@@ -1,0 +1,19 @@
+{
+  "env": {
+    "HARNESS_MONITOR": "1"
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/ledger-stop-check.mjs\"",
+            "timeout": 30,
+            "statusMessage": "하네스 검증 원장 확인"
+          }
+        ]
+      }
+    ]
+  }
+}
