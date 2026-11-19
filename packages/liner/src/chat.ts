@@ -1,3 +1,4 @@
+import { scrubProse } from './scrub.ts';
 import { HR_CRITERIA, HR_PERSONA } from './persona.ts';
 import { createHash } from 'node:crypto';
 import { ChatProviderError } from '../../tailor/src/provider.ts';
@@ -176,7 +177,8 @@ export async function callLinerJson(deps: LinerChatDeps, call: ChatCallContext |
   if (choice.finish_reason === 'length') throw new ChatProviderError('LINER_CHAT_TRUNCATED', '응답이 길이 한도에서 잘렸습니다. 요청을 더 좁혀 다시 보내 주세요.', 'completed');
   if (typeof choice.message?.content !== 'string') throw new ChatProviderError('CHAT_OUTPUT_INVALID', '대화 응답 형식이 올바르지 않습니다.', 'completed');
   try {
-    return JSON.parse(choice.message.content);
+    // 설명 문장에 섞인 내부 ID는 지운다. 근거 필드는 그대로 둔다(scrub.ts).
+    return scrubProse(JSON.parse(choice.message.content));
   } catch {
     throw new ChatProviderError('CHAT_OUTPUT_INVALID', '대화 응답 형식이 올바르지 않습니다.', 'completed');
   }

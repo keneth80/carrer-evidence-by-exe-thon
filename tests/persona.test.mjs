@@ -47,3 +47,28 @@ test('서류 검토 기준: 점검·초안·공고 맞춤 호출에는 붙고, �
   for (const name of ['chat', 'review', 'supplement', 'supplementReview', 'jdReview']) assert.ok(requests[name]().messages[0].content.includes(HR_CRITERIA), name);
   for (const name of ['supplementCritic', 'jdCritic']) assert.ok(!requests[name]().messages[0].content.includes(HR_CRITERIA), name);
 });
+
+test('내부 ID: 페르소나가 문장에 ID를 쓰지 말라고 하고, 서버는 설명 문장에서만 ID를 지우고 근거 필드는 그대로 둔다', async () => {
+  const { withoutInternalIds, scrubProse } = await import('../packages/liner/src/scrub.ts');
+  assert.match(HR_PERSONA, /내부 ID/);
+  assert.equal(withoutInternalIds('운영 대시보드 경력(fact_005, fact_011)에 이어 붙일 수 있도록 정리했습니다.'), '운영 대시보드 경력에 이어 붙일 수 있도록 정리했습니다.');
+  assert.equal(withoutInternalIds('요구(req_p1)와 블록 [blk_new_1]을 봤어요.'), '요구와 블록을 봤어요.');
+  assert.equal(withoutInternalIds('ID 없는 문장은 그대로입니다.'), 'ID 없는 문장은 그대로입니다.');
+  const raw = {
+    reply: '경력(fact_005)을 보완했어요.', questions: ['fact_011 문장의 기간은요?'],
+    findings: [{ fact_ids: ['fact_005'], title: '범위(fact_005)', detail: 'd', question: '언제(fact_005)였나요?' }],
+    candidates: [{ statement: 'fact_005 그대로 둔다', supplements_fact_id: 'fact_005' }],
+    drafts: [{ text: 'fact_001 원문', fact_ids: ['fact_001'], note: '어미(fact_001)만' }],
+    verdicts: [{ index: 0, verdict: 'drop', reason: '근거(fact_009)에 없음' }],
+    changes: [{ block_id: 'blk_1', before: 'blk_1 원문', after: 'req_1 원문', fact_ids: ['fact_1'], reason: '요구(req_1) 연결' }],
+  };
+  const out = scrubProse(raw);
+  assert.equal(out.reply, '경력을 보완했어요.');
+  assert.equal(out.questions[0], '문장의 기간은요?');
+  assert.deepEqual(out.findings[0], { fact_ids: ['fact_005'], title: '범위', detail: 'd', question: '언제였나요?' });
+  assert.deepEqual(out.candidates[0], raw.candidates[0], 'statement is evidence and stays verbatim');
+  assert.deepEqual(out.drafts[0], { text: 'fact_001 원문', fact_ids: ['fact_001'], note: '어미만' });
+  assert.equal(out.verdicts[0].reason, '근거에 없음');
+  assert.deepEqual(out.changes[0], { ...raw.changes[0], reason: '요구 연결' });
+  assert.equal(raw.reply, '경력(fact_005)을 보완했어요.', 'input is not mutated');
+});

@@ -437,3 +437,18 @@ Liner 실호출(데모 서버 `CHAT_MODE=liner`, `LINER_MODE=mock` 검색, 한�
 | 근거 검토의 실제 제외(drop) | NOT_OBSERVED | 이번 7건에서는 초안·수정안이 근거 안이라 제외 0. drop 화면은 테스트로만 확인 |
 
 실호출 뒤 데모 서버는 mock 모드로 되돌림.
+
+### 2026-11-19 데모 영상(`docs/submission/데모영상.mp4`, 2:48, 1280×800 H.264)
+
+- 합성 자료만 든 빈 DB(`frontend.synthetic.docx`, 합성 공고 '노바커머스 풀스택'), Liner chat 실호출 7건 succeeded·약 $0.09·전송 불명 0. 사용자 추가 승인으로 대화 승인 총 30건·$5 중 21건 사용(누적 확인 비용 약 $0.30).
+- 첫 실호출 녹화본은 녹화 스크립트의 스크롤 대상 오류로 결과 화면이 안 잡혀 폐기(7건 사용), mock 리허설로 수정 확인 후 재녹화. 재녹화본에서도 답변 턴 결과 직후 약 5초 잘못된 스크롤 → 해당 프레임을 잘라 냄(화면 내용 변경 없음).
+- 녹화 도구는 저장소 밖(`/tmp/ce-check/video/`: cards.html, record.mjs, end.mjs, build.py). 제출 버튼은 누르지 않음.
+- 발견(미수정): 실호출 HR 전문가 답변 문장에 내부 ID(`fact_005`, `fact_011`)가 그대로 나온다 → 프롬프트에 'reply에 ID를 쓰지 않는다' 추가 필요.
+
+### 2026-11-19 AI 답변 속 내부 ID 제거 + 데모 영상 재녹화
+
+- 프롬프트: `HR_PERSONA`에 'reply·질문·설명·이유 문장에 내부 ID를 쓰지 않는다' 추가.
+- 서버: `packages/liner/src/scrub.ts` `scrubProse` — Liner 응답(`callLinerJson`)의 설명 문장 필드(reply·question(s)·detail·title·note·reason·summary)에서 `fact_/blk_/req_/said_` ID를 지운다. 근거 필드(statement·text·before·after)와 ID 필드는 그대로, 입력은 바꾸지 않음. `tests/persona.test.mjs` 재현 테스트 FAIL → PASS, `npm test` 191/191.
+- 데모 영상 재녹화(`docs/submission/데모영상.mp4` 2:50, 편집 없음): Liner chat 7건 succeeded·약 $0.10·전송 불명 0. 저장된 턴 결과 5개의 설명 문장에 내부 ID 0건. 녹화 스크립트 스크롤 대상(가장 안쪽·마지막 요소) 수정 후 mock 리허설로 확인하고 찍음.
+- 대화 승인 누적: 30건 중 28건 사용, 누적 확인 비용 약 $0.40, 전송 불명 0. 녹화 후 서버 종료.
+- 영상은 YouTube에 올리고 저장소에는 넣지 않음(`.gitignore`에 `docs/submission/*.mp4`).

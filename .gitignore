@@ -18,3 +18,6 @@ CLAUDE.local.md
 
 .omc/
 .claude/scheduled_tasks.lock
+
+# 데모 영상은 YouTube에 올리고 저장소에는 넣지 않는다
+docs/submission/*.mp4
