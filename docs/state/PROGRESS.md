@@ -493,3 +493,15 @@ Liner 실호출(데모 서버 `CHAT_MODE=liner`, `LINER_MODE=mock` 검색, 한�
 | 화면 | 구현(브라우저 확인은 사용자 테스트) | 작성 예시 상자·빈칸 강조·'이 예시로 답하기'·빈칸 남으면 전송 막기(보완 대화·JD 점검), 1차 점검 결과에는 읽기 전용 |
 | 전체 | PASS | typecheck, npm test 210/210, check:integration PASS. check:contracts는 BLOCKED(PyYAML·jsonschema 미설치) |
 | 비용 누계(이 데모 DB) | — | chat 19건(확인 비용 약 $0.50), search 2건 |
+
+### 2026-11-20 보완 대화 점검 항목 반영 표시(사용자 테스트 후속)
+
+- 관찰: '이 예시로 답하기' → '기존 항목 바꾸기' 뒤에도 위 점검 항목에 표시가 없고, 바꾼 문장이 '대상:'에서 말없이 사라짐(바꾼 문장은 같은 자리에 새 id).
+- 수정: 점검 기록은 그대로 두고, 시작 버전과 현재 버전을 비교해 '반영함'·'일부 반영' 표시, 대상은 예전 문장(취소선) → 새 문장, 버전 안내에 반영 수와 '현재 버전으로 새로 점검받기'(유료 1건) 안내. 화면만 변경(API·DB·비용 변화 없음).
+- 검증: tests/finding-state.test.mjs 4개 PASS, typecheck·build. 브라우저 확인은 사용자 테스트.
+
+### 2026-11-20 기본 이력서 Word(.docx) 내려받기(DECISIONS S1-23)
+
+- 범위: 확정 경력 최신 버전 → Word 파일(브라우저에서 생성, 서버 전송·저장 없음, API·DB 변경 없음). 이름·연락처는 맨 위 빈칸으로 두고 사용자가 채운다.
+- 검증: tests/resume-docx.test.mjs 6개 PASS(CRC-32 표준값, zip 재읽기, 문단 구성, mammoth로 열기·문장 그대로·제목 스타일, 같은 bytes·제어 문자·빈 경력, 파일 이름). 합성 파일을 macOS textutil로 열기·`unzip -t` 오류 없음. 실제 Word·Pages에서 열어 보기와 브라우저 버튼 클릭은 사용자 테스트(NOT_RUN).
+

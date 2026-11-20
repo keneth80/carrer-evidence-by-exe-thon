@@ -3,11 +3,15 @@ import type { SupplementCandidate, SupplementTurn } from './api.ts';
 import { ExampleBox } from './ExampleBox.tsx';
 import { categoryLabel } from './FactEditor.tsx';
 import { stageSummary } from './progress.ts';
+import { findingProgress } from './finding-state.ts';
+import type { FactChange } from './finding-state.ts';
 
 // 보완 대화의 에이전트 한 턴. 점검 항목·질문은 안내, 후보는 사용자 문장(추가하면 확정 경력), 초안은 사실이 아닌 문장 제안이다.
 
 type Props = {
-  turn: SupplementTurn; busy: boolean; isAdded: (candidate: SupplementCandidate) => boolean; factText: (id: string) => string | null;
+  turn: SupplementTurn; busy: boolean; isAdded: (candidate: SupplementCandidate) => boolean;
+  // 점검 당시 문장과 지금 문장(바뀌었으면). startFacts=null이면 시작 버전을 아직 못 불러온 것이다.
+  factState: (id: string) => FactChange | null; startFacts: ResumeFact[] | null; headFacts: ResumeFact[];
   targetFor: (candidate: SupplementCandidate) => ResumeFact | null;
   // example이 있으면 '이 예시로 답하기'(입력창에 예시를 넣음), 없으면 질문만 붙인다.
   onAnswer: (question: string, example?: string) => void; onAdd: (candidate: SupplementCandidate) => void; onReplace: (candidate: SupplementCandidate, targetId: string) => void; onAdoptDraft: (text: string) => void;
@@ -27,17 +31,25 @@ function PipelineNote({ turn }: { turn: SupplementTurn }) {
   </div>;
 }
 
-export function SupplementTurnView({ turn, busy, isAdded, factText, targetFor, onAnswer, onAdd, onReplace, onAdoptDraft }: Props) {
+const PROGRESS_LABEL = { done: '반영함', partial: '일부 반영', open: null } as const;
+
+export function SupplementTurnView({ turn, busy, isAdded, factState, startFacts, headFacts, targetFor, onAnswer, onAdd, onReplace, onAdoptDraft }: Props) {
   return <div className="supp-turn">
     <p>{turn.reply}</p>
     <PipelineNote turn={turn} />
     {turn.findings.length > 0 && <ul className="supp-findings">
-      {turn.findings.map((item, index) => <li key={index}>
-        <strong>{item.title}</strong> <span className="muted">{item.detail}</span>
-        {item.fact_ids.length > 0 && <div className="fine-print">대상: {item.fact_ids.map(id => factText(id)).filter(Boolean).map(text => `“${text}”`).join(', ')}</div>}
+      {turn.findings.map((item, index) => {
+        const progress = PROGRESS_LABEL[findingProgress(item.fact_ids, startFacts, headFacts)];
+        const targets = item.fact_ids.map(id => factState(id)).filter((state): state is FactChange => state !== null);
+        return <li key={index} className={progress ? 'resolved' : undefined}>
+        {progress && <span className="tag done">{progress}</span>} <strong>{item.title}</strong> <span className="muted">{item.detail}</span>
+        {targets.length > 0 && <div className="fine-print">대상: {targets.map((state, at) => <span key={at} className="supp-target">{at > 0 && ', '}
+          {state.changed ? <><del>“{state.text}”</del> → {state.replacedBy ? <ins>“{state.replacedBy}”</ins> : <em>지웠거나 바뀐 항목</em>}</> : `“${state.text}”`}
+        </span>)}</div>}
         {item.question && <div className="supp-question">질문: {item.question} <button type="button" className="ghost" onClick={() => onAnswer(item.question!)}>이 질문에 답하기</button></div>}
         {item.example && <ExampleBox text={item.example} onUse={() => onAnswer(item.question ?? item.title, item.example!)} />}
-      </li>)}
+      </li>;
+      })}
     </ul>}
     {turn.candidates.length > 0 && <div className="supp-block">
       <h4>경력 후보 <span className="fine-print">내가 말한 문장 그대로입니다. 맞으면 추가하세요.</span></h4>
@@ -48,7 +60,7 @@ export function SupplementTurnView({ turn, busy, isAdded, factText, targetFor, o
           <span className="tag added">{categoryLabel[candidate.category]}</span>
           <span>{candidate.statement}</span>
           {target && <span className="fine-print">비슷한 기존 항목: “{target.statement}”</span>}
-          {!target && candidate.supplements_fact_id && <span className="fine-print">보완 대상: “{factText(candidate.supplements_fact_id)}”</span>}
+          {!target && candidate.supplements_fact_id && factState(candidate.supplements_fact_id) && <span className="fine-print">보완 대상: “{factState(candidate.supplements_fact_id)!.text}”</span>}
           <span className="row-actions">
             {target && <button type="button" className="primary small" disabled={busy} onClick={() => onReplace(candidate, target.id)}>기존 항목 바꾸기</button>}
             <button type="button" className="outline small" disabled={busy || added} onClick={() => onAdd(candidate)}>{added ? '경력에 추가됨' : target ? '새 항목으로 추가' : '경력에 추가'}</button>

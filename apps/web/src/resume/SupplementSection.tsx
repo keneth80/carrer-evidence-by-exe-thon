@@ -6,6 +6,7 @@ import { SupplementTurnView } from './SupplementTurnView.tsx';
 import { BLANK_LEFT } from './ExampleBox.tsx';
 import { hasBlank } from '../../../../packages/tailor/src/example.ts';
 import { AgentProgress } from './AgentProgress.tsx';
+import { factChange, findingProgress } from './finding-state.ts';
 import { replaceFact, replaceTarget } from './similar.ts';
 import { useLiveChat } from '../tailor/chatMode.ts';
 
@@ -32,7 +33,8 @@ export function SupplementSection({ documentId, extractionId, head, onConfirmed 
   const [error, setError] = useState<string | null>(null);
   const [startKey, setStartKey] = useState(() => crypto.randomUUID());
   const [sendKey, setSendKey] = useState(() => crypto.randomUUID());
-  const [startedRevision, setStartedRevision] = useState<number | null>(null);
+  // 점검을 시작한 확정 경력 버전. 점검 항목의 '대상' 문장이 그 뒤에 바뀌었는지 비교한다.
+  const [started, setStarted] = useState<FactRevision | null>(null);
 
   const pending = session?.latest_task ? ['queued', 'running'].includes(session.latest_task.state) : false;
   useEffect(() => {
@@ -53,7 +55,7 @@ export function SupplementSection({ documentId, extractionId, head, onConfirmed 
   }, [sessionId, documentId, sendKey]);
   useEffect(() => {
     if (!session) return;
-    api.factRevision(session.fact_revision_id).then(value => setStartedRevision(value.revision)).catch(() => setStartedRevision(null));
+    api.factRevision(session.fact_revision_id).then(value => setStarted(value)).catch(() => setStarted(null));
   }, [session?.fact_revision_id]);
 
   const start = async () => {
@@ -89,7 +91,10 @@ export function SupplementSection({ documentId, extractionId, head, onConfirmed 
   const replace = (candidate: SupplementCandidate, targetId: string) => confirmFacts(replaceFact(head.facts, targetId, stated(candidate)));
   const targetFor = (candidate: SupplementCandidate) => replaceTarget(candidate, head.facts);
   const isAdded = (candidate: SupplementCandidate) => head.facts.some(fact => squash(fact.statement) === squash(candidate.statement));
-  const factText = (id: string) => head.facts.find(fact => fact.id === id)?.statement ?? null;
+  const startFacts = started && started.id === session?.fact_revision_id ? started.facts : null;
+  const factState = (id: string) => factChange(id, startFacts, head.facts);
+  const findings = session?.messages.flatMap(message => message.turn?.findings ?? []) ?? [];
+  const resolved = findings.filter(item => findingProgress(item.fact_ids, startFacts, head.facts) !== 'open').length;
   const failed = session?.latest_task?.state === 'failed' ? session.latest_task.error_code : null;
   const mode = session?.provider_mode ?? (live ? 'live' : 'mock');
 
@@ -100,14 +105,14 @@ export function SupplementSection({ documentId, extractionId, head, onConfirmed 
     {!sessionId && <button className="primary" disabled={busy} onClick={start}>HR 전문가에게 점검받기</button>}
     {session && session.fact_revision_id !== session.head_fact_revision_id && <div className="notice">
       <strong>버전 안내</strong>
-      <span>이 대화는 확정 경력 {startedRevision ?? '이전'}번째 버전에서 시작했고, 지금은 {head.revision}번째 버전입니다(대화에서 추가한 항목 포함).</span>
+      <span>이 대화는 확정 경력 {started?.revision ?? '이전'}번째 버전에서 시작했고, 지금은 {head.revision}번째 버전입니다(대화에서 추가·변경한 항목 포함).{findings.length > 0 && ` 점검 항목 ${findings.length}개 중 ${resolved}개에 반영했어요. 점검 내용은 시작 버전 기준 기록이라 그대로 두고, 반영한 항목에 표시만 합니다. 바뀐 내용으로 다시 점검받으려면 아래 버튼을 누르세요(유료 호출 1건).`}</span>
       <button className="outline small" disabled={busy || pending} onClick={() => { remember(documentId, null); setSessionId(null); setSession(null); }}>현재 버전으로 새로 점검받기</button>
     </div>}
     {sessionId && !session && <p role="status" className="status-line">대화를 불러오는 중…</p>}
     {session && <div className="supp-chat">
       {session.messages.map(message => message.role === 'user'
         ? <div key={message.id} className="supp-user"><span className="fine-print">나</span><p>{message.content}</p></div>
-        : message.turn && <SupplementTurnView key={message.id} turn={message.turn} busy={busy || pending} isAdded={isAdded} factText={factText} targetFor={targetFor}
+        : message.turn && <SupplementTurnView key={message.id} turn={message.turn} busy={busy || pending} isAdded={isAdded} factState={factState} startFacts={startFacts} headFacts={head.facts} targetFor={targetFor}
           onAnswer={(question, example) => setText(current => example ? [current.trim(), `‘${question}’에 대한 답: ${example}`].filter(Boolean).join('\n\n') : current || `‘${question}’에 대한 답: `)} onAdd={add} onReplace={replace} onAdoptDraft={draft => send(draft)} />)}
       {pending && <AgentProgress progress={session.progress} taskId={session.latest_task?.id ?? null} mode={session.progress?.mode ?? 'staged'} firstTurn={!session.messages.some(message => message.role === 'user')} />}
       {failed && <div className="error" role="alert">응답을 만들지 못했어요({failed}). 메시지를 다시 보내 주세요.</div>}

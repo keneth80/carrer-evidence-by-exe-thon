@@ -139,3 +139,9 @@ mark{background:#ffe8a3;color:inherit;border-radius:3px;padding:0 1px}
 .example-label{font-size:12px;font-weight:700;color:#2b5f66}
 .example-text{margin:0;white-space:pre-wrap;font-size:13px;line-height:1.55;color:#22343a}
 .example-text mark.blank{background:#fff1c7;color:#6b4a00;border-radius:4px;padding:0 3px}
+
+/* 점검 항목 반영 표시(사용자 테스트 2026-11-20). 점검 기록은 그대로 두고, 대상 문장이 바뀐 항목만 표시한다. */
+.supp-findings li.resolved{opacity:.85}
+.tag.done{background:#e3f4ea;color:#1f6b3d;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:700}
+.supp-target del{color:#8a9aa0}
+.supp-target ins{text-decoration:none;color:#1f6b3d;font-weight:600}

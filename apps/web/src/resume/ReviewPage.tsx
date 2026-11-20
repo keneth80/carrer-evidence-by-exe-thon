@@ -10,6 +10,7 @@ import { WarningsPanel } from './WarningsPanel.tsx';
 import { FactBulkBar } from './FactBulkBar.tsx';
 import { addLines } from './bulk.ts';
 import { SupplementSection } from './SupplementSection.tsx';
+import { downloadResumeDocx } from './download-docx.ts';
 import type { SourceLine } from './bulk.ts';
 import { navigate } from '../router.ts';
 import { recentSearch } from '../search/recent.ts';
@@ -129,6 +130,8 @@ export function ReviewPage({ documentId }: { documentId: string }) {
       <strong>확정 경력 {revision.revision}번째 버전</strong>
       <span>{new Date(revision.confirmed_at).toLocaleString('ko-KR')} 저장 · 항목 {revision.facts.length}개</span>
       {!editing && <button className="outline small" onClick={() => setEditing(true)}>다시 확인·수정</button>}
+      {/* 보완을 마친 기본 이력서를 Word로 받아 이름·연락처를 직접 넣는다(S1-23). 공고 맞춤 수정은 들어가지 않는다. */}
+      {!editing && <button className="outline small" title="이름·연락처는 맨 위 [ ] 칸에 Word에서 직접 넣어 주세요. 이 브라우저에서 만들며 서버로 보내지 않아요." onClick={() => downloadResumeDocx(revision)}>기본 이력서 Word로 내려받기</button>}
     </div>}
     {/* 확정 경력이 있고 수정 중이 아닐 때 에이전트 점검·보완을 맨 앞에 보여 준다(S1-16). */}
     {revision && !editing && draft && <SupplementSection documentId={document.id} extractionId={draft.id} head={revision} onConfirmed={refresh} />}
