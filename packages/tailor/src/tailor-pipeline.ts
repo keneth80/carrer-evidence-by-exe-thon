@@ -1,4 +1,4 @@
-import { checkRequirements, JD_LIMITS, screenJdReview } from './jd-check.ts';
+import { checkRequirements, JD_LIMITS, screenExtractedRequirements, screenJdReview } from './jd-check.ts';
 import type { CriticChange, JdFinding, RequirementCheck, TailorStageProvider } from './jd-check.ts';
 import { isChatOutput } from './provider.ts';
 import type { ChatCallContext, ChatJob, ChatOutput, ChatProvider, ChatTurn } from './provider.ts';
@@ -10,12 +10,13 @@ import type { FactLike, ProposedChange, ResumeBlock } from './types.ts';
 
 // 공고(JD) 맞춤 점검·수정 오케스트레이션(DECISIONS S1-18). 보완 대화(S1-17)와 같은 4단계 구조다.
 //  첫 턴(JD 점검): ① 요구사항 대조(모델 없음) → ② AI 점검(근거 약함·미기재 요구에 질문만). 문서는 고치지 않는다.
+//   요구사항 목록이 없는 공고(실시간 검색 요약)는 ①에서 공고 글의 요구를 추출한 뒤 대조한다(인용 확인은 서버, 2026-11-20).
 //  답변 턴: ③ 수정안 작성(기존 맞춤 대화 제안) → ④ 근거 검토(다른 호출이 수정안마다 keep/drop) → keep도 결정적 가드로 다시 거른다.
 // ④가 실패하면(한도 거절·전송 불명·형식 오류) 수정안은 보이지 않는다(닫힌 쪽). 사용자 문장 후보는 검토 없이 기존 확인 절차로 남는다.
 // stages provider가 없으면(기존 단일 호출 경로) ②·④를 건너뛰고 그 사실을 단계 기록에 남긴다.
 
 export type TailorStageKey = 'match' | 'review' | 'draft' | 'critic';
-export const TAILOR_STAGE_LABELS: Record<TailorStageKey, string> = { match: '요구사항 대조', review: 'AI 점검', draft: '수정안 작성', critic: '근거 검토' };
+export const TAILOR_STAGE_LABELS: Record<TailorStageKey, string> = { match: '요구사항 대조', review: 'HR 전문가 점검', draft: '수정안 작성', critic: '근거 검토' };
 export type DroppedChange = { text: string; reason: string; by: 'critic' | 'guard' };
 export type TailorPipelineSummary = {
   mode: 'staged' | 'single'; stages: StageSummary<TailorStageKey>[]; requirements_checked: number; ai_findings: number;
@@ -45,18 +46,45 @@ function summary(deps: TailorPipelineDeps, t: T, extra: Omit<TailorPipelineSumma
   return { mode: deps.stages ? 'staged' : 'single', stages: t.summary(), ...extra };
 }
 
-async function jdCheckTurn(deps: TailorPipelineDeps, input: TailorPipelineInput, t: T): Promise<TailorPipelineResult> {
+type Matched = { checks: RequirementCheck[]; job: ChatJob; extracted: number; failed: string | null };
+
+// ① 요구사항 대조. 공고에 요구 목록이 없고 추출 provider가 있으면 먼저 공고 글에서 요구를 뽑는다.
+async function matchRequirements(deps: TailorPipelineDeps, input: TailorPipelineInput, t: T): Promise<Matched> {
   t.set('match', 'running');
-  const checks = checkRequirements(input.facts, input.job);
-  const counts = `충족 ${countOf(checks, 'met')} · 근거 약함 ${countOf(checks, 'weak')} · 미기재 ${countOf(checks, 'missing')}`;
-  t.set('match', 'done', counts);
+  const extract = deps.stages?.extract;
+  if (input.job.requirements.length > 0 || !extract) {
+    const checks = checkRequirements(input.facts, input.job);
+    t.set('match', 'done', countsOf(checks));
+    return { checks, job: input.job, extracted: 0, failed: null };
+  }
+  const got = await t.call(signal => extract({ job: input.job, signal, call: deps.call }));
+  const requirements = got.ok ? screenExtractedRequirements(got.value, input.job.content_text) : null;
+  if (!requirements) {
+    const code = got.ok ? 'CHAT_OUTPUT_INVALID' : got.code;
+    t.set('match', 'failed', `요구사항 추출 실패(${code})`);
+    return { checks: [], job: input.job, extracted: 0, failed: code };
+  }
+  const job = { ...input.job, requirements };
+  const checks = checkRequirements(input.facts, job);
+  t.set('match', 'done', `공고 글에서 요구사항 ${requirements.length}개 추출 · ${countsOf(checks)}`);
+  return { checks, job, extracted: requirements.length, failed: null };
+}
+
+const countsOf = (checks: RequirementCheck[]) => `충족 ${countOf(checks, 'met')} · 근거 약함 ${countOf(checks, 'weak')} · 미기재 ${countOf(checks, 'missing')}`;
+const NO_TABLE = '공고 원문을 열어 자격 요건을 확인해 주세요. \'이 공고에 맞춰 수정해줘\'로 공고 요약 기준 수정안은 받을 수 있어요.';
+
+async function jdCheckTurn(deps: TailorPipelineDeps, input: TailorPipelineInput, t: T): Promise<TailorPipelineResult> {
+  const { checks, job, extracted, failed: extractFailed } = await matchRequirements(deps, input, t);
+  const counts = countsOf(checks);
   let screened: ReturnType<typeof screenJdReview> = null;
   let failed: string | null = null;
-  if (!deps.stages) t.set('review', 'skipped', 'AI 점검 provider가 설정되지 않았어요');
+  if (!deps.stages) t.set('review', 'skipped', 'HR 전문가 점검 provider가 설정되지 않았어요');
+  // 대조할 요구가 없으면 유료 점검 호출을 하지 않는다(빈 점검표에 질문을 받을 수 없다).
+  else if (checks.length === 0) t.set('review', 'skipped', '대조할 요구사항이 없어요');
   else {
     t.set('review', 'running');
     const stages = deps.stages;
-    const reviewed = await t.call(signal => stages.review({ job: input.job, facts: input.facts, checks, signal, call: deps.call }));
+    const reviewed = await t.call(signal => stages.review({ job, facts: input.facts, checks, signal, call: deps.call }));
     screened = reviewed.ok ? screenJdReview(reviewed.value, checks, input.facts) : null;
     failed = !reviewed.ok ? reviewed.code : screened ? null : 'CHAT_OUTPUT_INVALID';
     t.set('review', failed ? 'failed' : 'done', failed ? `실패(${failed})` : `질문 ${screened!.findings.length}개`);
@@ -64,9 +92,12 @@ async function jdCheckTurn(deps: TailorPipelineDeps, input: TailorPipelineInput,
   t.set('draft', 'skipped', 'JD 점검에는 수정안이 없어요');
   t.set('critic', 'skipped', 'JD 점검에는 수정안이 없어요');
   const findings = screened?.findings ?? [];
-  // AI 점검 실패를 숨기지 않는다: 대조 결과만 보여 준다고 답에 적는다.
-  const base = `요구사항 ${checks.length}개를 확정 경력과 대조했어요(${counts}).`;
-  const reply = screened?.reply || (failed ? `${base} AI 점검은 하지 못했어요(${failed}). 근거가 약한 요구를 직접 말씀해 주시면 수정안을 만들어 드릴게요.` : `${base} 근거가 약한 요구에 대해 알려 주시면 수정안을 만들어 드릴게요.`);
+  // AI 점검 실패를 숨기지 않는다: 대조 결과만 보여 준다고 답에 적는다. 추출한 요구는 요약에서 읽었다고 밝힌다.
+  const source = extracted > 0 ? `공고 글(검색 요약)에서 요구사항 ${extracted}개를 읽어 확정 경력과 대조했어요(${counts}). 요약에서 읽은 목록이라 공고 원문과 다를 수 있어요.` : `요구사항 ${checks.length}개를 확정 경력과 대조했어요(${counts}).`;
+  const reply = checks.length === 0
+    ? `${extractFailed ? `공고에서 요구사항을 읽지 못했어요(${extractFailed}).` : '이 공고 글에서는 대조할 요구사항을 찾지 못했어요.'} ${NO_TABLE}`
+    : screened?.reply ? (extracted > 0 ? `${screened.reply}\n\n(요구사항은 검색 요약에서 읽었어요. 공고 원문과 다를 수 있어요.)` : screened.reply)
+    : failed ? `${source} HR 전문가 점검은 하지 못했어요(${failed}). 근거가 약한 요구를 직접 말씀해 주시면 수정안을 만들어 드릴게요.` : `${source} 근거가 약한 요구에 대해 알려 주시면 수정안을 만들어 드릴게요.`;
   const questions = [...new Set([...findings.map(item => item.question), ...(screened?.questions ?? [])])].slice(0, JD_LIMITS.questions);
   const turn: TailorTurn = { kind: 'jd_check', requirements: checks, findings, pipeline: summary(deps, t, { requirements_checked: checks.length, ai_findings: findings.length, changes_reviewed: 0, dropped_changes: [], changes_withheld: false }) };
   return { kind: 'ok', reply, changes: [], questions, turn, transmission: t.transmission() };
@@ -119,7 +150,9 @@ async function answerTurn(deps: TailorPipelineDeps, input: TailorPipelineInput, 
   if (deps.stages && edits.length > 0 && !reviewed.withheld) t.set('critic', 'done', `${edits.length - dropped.length}개 통과, ${dropped.length}개 제외`);
   const notes = reviewed.withheld ? ['근거 검토를 하지 못해 수정안은 보여 드리지 않아요. 내가 말한 경력 후보는 그대로 확인할 수 있어요.'] : [];
   const turn: TailorTurn = { kind: 'answer', requirements: [], findings: [], pipeline: summary(deps, t, { requirements_checked: 0, ai_findings: 0, changes_reviewed: deps.stages ? edits.length : 0, dropped_changes: dropped, changes_withheld: reviewed.withheld }) };
-  return { kind: 'ok', reply: output.reply, changes: screened.changes, questions: [...new Set([...notes, ...screened.questions])], turn, transmission: t.transmission() };
+  // 품질 검증(2026-11-20): 답이 근거 검토에서 빠진 수정까지 했다고 말할 수 있다 → 뺀 수정안이 있으면 답에 알린다.
+  const reply = dropped.length > 0 ? `${output.reply}\n\n근거 검토에서 수정안 ${dropped.length}개를 뺐어요. 위 설명 중 아래 수정안 목록에 없는 내용은 적용되지 않아요.` : output.reply;
+  return { kind: 'ok', reply, changes: screened.changes, questions: [...new Set([...notes, ...screened.questions])], turn, transmission: t.transmission() };
 }
 
 export async function runTailorPipeline(deps: TailorPipelineDeps, input: TailorPipelineInput): Promise<TailorPipelineResult> {

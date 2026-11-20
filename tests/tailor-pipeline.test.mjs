@@ -109,7 +109,7 @@ test('첫 턴: AI 점검이 실패해도 대조 결과는 보여 주고 실패�
   const result = await runTailorPipeline(failed.deps, { ...answerInput, message: null, userMessages: [] });
   assert.equal(result.kind, 'ok');
   assert.equal(stateOf(failed.snapshots.at(-1)).review, 'failed');
-  assert.match(result.reply, /AI 점검은 하지 못했어요/);
+  assert.match(result.reply, /HR 전문가 점검은 하지 못했어요/);
   assert.equal(result.turn.requirements.length, 3);
 
   const none = harness({ chat: chatWith([]), stages: null });
@@ -133,6 +133,8 @@ test('답변 턴: ④ 근거 검토가 뺀 수정안은 이유와 남고, keep�
   assert.deepEqual(result.turn.pipeline.dropped_changes.map(item => [item.by, item.text]), [['critic', 'React로 정산 화면 개발을 총괄했습니다.']]);
   assert.match(result.turn.pipeline.dropped_changes[0].reason, /총괄/);
   assert.deepEqual(stateOf(snapshots.at(-1)), { match: 'skipped', review: 'skipped', draft: 'done', critic: 'done' });
+  // 품질 검증(2026-11-20): 답이 근거 검토에서 빠진 수정('총괄')까지 했다고 말했다 → 빠진 수정이 있으면 답에 알린다.
+  assert.match(result.reply, /근거 검토에서 수정안 1개를 뺐어요/);
   assert.equal(result.turn.kind, 'answer');
   assert.equal(result.turn.pipeline.changes_reviewed, 2, 'only edits go to the critic; the user statement does not');
 
@@ -281,13 +283,13 @@ test('Liner 단계 요청(전송 없음): JD 점검은 요구사항 상태·기�
 
 test('화면 진행 계산: JD 점검은 요구사항 대조·AI 점검, 답변 턴은 수정안 작성·근거 검토를 진행 단계로 센다', () => {
   const first = progressView(null, 'task_1', 'staged', true, TAILOR_PROGRESS);
-  assert.deepEqual(first.stages.map(stage => [stage.label, stage.state]), [['요구사항 대조', 'pending'], ['AI 점검', 'pending'], ['수정안 작성', 'skipped'], ['근거 검토', 'skipped']]);
+  assert.deepEqual(first.stages.map(stage => [stage.label, stage.state]), [['요구사항 대조', 'pending'], ['HR 전문가 점검', 'pending'], ['수정안 작성', 'skipped'], ['근거 검토', 'skipped']]);
   assert.equal(first.total, 2);
   const answer = progressView(null, 'task_1', 'staged', false, TAILOR_PROGRESS);
   assert.deepEqual(answer.stages.map(stage => stage.state), ['skipped', 'skipped', 'pending', 'pending']);
   const running = progressView({ task_id: 'task_1', mode: 'staged', started_at: '2026-11-19T00:00:00.000Z', stages: [
     { key: 'match', label: '요구사항 대조', state: 'done', note: null, started_at: null, finished_at: null },
-    { key: 'review', label: 'AI 점검', state: 'running', note: null, started_at: null, finished_at: null },
+    { key: 'review', label: 'HR 전문가 점검', state: 'running', note: null, started_at: null, finished_at: null },
     { key: 'draft', label: '수정안 작성', state: 'skipped', note: null, started_at: null, finished_at: null },
     { key: 'critic', label: '근거 검토', state: 'skipped', note: null, started_at: null, finished_at: null },
   ] }, 'task_1', 'staged', true, TAILOR_PROGRESS);

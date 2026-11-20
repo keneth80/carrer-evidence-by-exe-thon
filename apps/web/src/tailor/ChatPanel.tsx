@@ -45,7 +45,7 @@ export function ChatPanel(props: Props) {
         const turn = message.role === 'assistant' ? message.turn ?? null : null;
         return <div key={message.id} className={`bubble-row ${message.role}`}>
           <div className={`bubble ${message.role}`}>
-            {message.role === 'assistant' && <span className="bubble-label">{props.liveChat ? 'AI · Liner' : 'AI · mock 대화'}</span>}
+            {message.role === 'assistant' && <span className="bubble-label">{props.liveChat ? 'HR 전문가 · Liner' : 'HR 전문가 · mock 대화'}</span>}
             <p>{message.content}</p>
             {turn?.kind === 'jd_check' && <JdCheckView turn={turn} facts={facts} busy={busy || pending} onAnswer={answer} />}
             {turn && <TailorPipelineNote turn={turn} />}

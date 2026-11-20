@@ -50,7 +50,10 @@ export function reviewFacts(facts: FactLike[]): ResumeReview {
   }
   // 같은 내용은 몇 번 나오든 안내 하나로 묶는다(세 번이면 같은 안내가 두 번 보이지 않게).
   const groups = new Map<string, { statement: string; ids: string[] }>();
-  for (const fact of facts) {
+  // 중복 안내는 문장 항목(업무·성과·기타)에만 한다. 직함·회사(재입사)·기간·기술·지역은 여러 경력·프로젝트에 같은 값이
+  // 나오는 게 정상이다(사용자 지적, 실사용 관찰: 같은 직함 3번, 같은 회사 2번, 같은 기술 3번).
+  const SENTENCE = new Set(['responsibility', 'achievement', 'other']);
+  for (const fact of facts.filter(item => SENTENCE.has(item.category))) {
     const key = `${fact.category}:${squash(fact.statement)}`;
     const group = groups.get(key);
     groups.set(key, group ? { ...group, ids: [...group.ids, fact.id] } : { statement: fact.statement, ids: [fact.id] });

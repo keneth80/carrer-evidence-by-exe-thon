@@ -63,10 +63,24 @@ const NOT_POSTING = /자소서|자기소개서|작성\s*(법|포인트|요령|�
 // 개별 공고는 제목에 직무·경력 표현이 있다. '채용'·'인재채용'뿐인 회사 안내 페이지는 공고가 아니다.
 const ROLE_SIGNAL = /개발|엔지니어|디자이너|기획|마케|매니저|분석|데이터|연구|운영|영업|인턴|경력|신입|engineer|developer|designer|manager|analyst|scientist|researcher|\b(?:pm|po|staff|lead|intern)\b|front|back|full.?stack/i;
 
-export function isJobPosting(title: string, url: URL): boolean {
+// 품질 검증(2026-11-20) 실호출에서 섞인 결과: 주간 공고 모음글, 해시태그 홍보글, 한글이 없는 해외 공고(영문·히브리어).
+const ROUNDUP = /\d+\s*월\s*\d+\s*주\s*차|주간\s*채용|채용\s*(?:공고\s*)?(?:모음|정리|소식|큐레이션|리스트)|모아\s*보기|총정리|top\s*\d+/i;
+const HASHTAG = /(?:^|\s)#[^\s#]+/g;
+const HANGUL = /[가-힣]/;
+
+// 국내 검색(country_code=KR, lang=ko)인데 제목·요약 어디에도 한글이 없고 요약이 있으면 해외 공고로 본다.
+// 요약이 비었거나(판단 근거 없음) 국내 채용 사이트·.kr 주소는 영문 공고여도 남긴다.
+function looksOverseas(title: string, description: string, host: string): boolean {
+  if (host.endsWith('.kr')) return false;
+  return description.trim() !== '' && !HANGUL.test(title) && !HANGUL.test(description);
+}
+
+export function isJobPosting(title: string, url: URL, description = ''): boolean {
   const host = url.hostname.toLowerCase();
-  if (NOT_POSTING.test(title)) return false;
+  if (NOT_POSTING.test(title) || ROUNDUP.test(title)) return false;
+  if ((description.match(HASHTAG)?.length ?? 0) >= 3) return false;
   if (JOB_BOARDS.some(domain => onHost(host, domain))) return true;
+  if (looksOverseas(title, description, host)) return false;
   if (!ROLE_SIGNAL.test(title)) return false;
   if (onHost(host, 'linkedin.com')) return url.pathname.startsWith('/jobs');
   let path = url.pathname;
@@ -112,7 +126,7 @@ export function toJobDraft(result: LinerResult): JobDraft | null {
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
   url.hash = '';
   const title = clean(result.title, 300);
-  if (!title || !isJobPosting(title, url)) return null;
+  if (!title || !isJobPosting(title, url, result.description)) return null;
   const canonical = url.toString();
   const host = url.hostname.toLowerCase();
   return {

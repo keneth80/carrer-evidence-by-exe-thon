@@ -52,7 +52,7 @@ function Preview() {
       <h1>나에게 맞는 기회,<br /><span>근거부터 살펴보세요.</span></h1>
       <p>같은 공고도 내 조건에 따라 판단이 달라집니다.<br />통합 개발 자료에 포함된 기반 확인 화면입니다.</p>
     </section>
-    <div className="notice"><strong>합성 데이터 모드</strong><span>가상의 공고 3개를 사용합니다. 이력서 업로드·AI 편집·자동 지원은 개발할 기능입니다.</span></div>
+    <div className="notice"><strong>합성 데이터 모드</strong><span>가상의 공고 3개를 사용합니다. 이력서 업로드·맞춤 편집·자동 지원은 개발할 기능입니다.</span></div>
     <section className="conditions" aria-label="예제 조건">
       <div><span className="small-label">조건 예제</span><h2>원격 근무를 얼마나 중요하게 보나요?</h2><p>필수에서 선호로 바꾸면 같은 근거의 평가가 달라집니다.</p></div>
       <label className="select-label">원격 근무

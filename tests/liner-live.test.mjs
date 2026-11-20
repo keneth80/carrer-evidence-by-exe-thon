@@ -274,6 +274,21 @@ test('live 관찰 회귀: 글·일반 채용 안내 제외, 회사명 형식, �
   assert.notEqual(dedupeKey(a), dedupeKey(c), 'same title at another company is kept');
 });
 
+test('검색 정확도(품질 검증 2026-11-20): 주간 공고 모음글·해시태그 홍보글·한글 없는 해외 공고를 뺀다', () => {
+  const url = new URL('https://board.example.test/jobs/1');
+  assert.equal(isJobPosting('10월 4주차 백엔드 엔지니어 채용공고 모음', url, '자세한 채용공고는 프로필 링크에서!'), false, 'weekly roundup');
+  assert.equal(isJobPosting('프론트엔드 개발자 채용', url, '자세한 내용은 링크에서 #합성 #개발자 #채용'), false, 'hashtag promo post');
+  assert.equal(isJobPosting('Senior Full Stack Engineer; Angular/Node.js', url, 'Deep Angular expertise (required): modern Angular development'), false, 'English-only posting from a KR search is overseas');
+  assert.equal(isJobPosting('Senior Full Stack Engineer (React + Node.js)', url, 'לארגון ממשלתי גדול דרוש/ה Senior Full Stack Engineer'), false, 'foreign-script posting');
+  // 유지: 한글 요약이 있는 영문 제목, 요약이 없는 영문 제목, 국내 채용 사이트·.kr 주소의 영문 공고
+  assert.equal(isJobPosting('Senior Frontend Engineer', url, '합성페이 결제 화면을 만드는 프론트엔드 엔지니어를 찾습니다.'), true);
+  assert.equal(isJobPosting('Staff Front-end Engineer (New Product) - Synthpay', url, ''), true);
+  assert.equal(isJobPosting('Backend Engineer', new URL('https://www.wanted.co.kr/wd/2'), 'We are hiring a backend engineer in Seoul.'), true);
+  assert.equal(isJobPosting('Backend Engineer', new URL('https://careers.synth.co.kr/jobs/3'), 'We are hiring a backend engineer in Seoul.'), true);
+  assert.equal(isJobPosting('[합성랩] 백엔드 개발자 채용', url, '✓ TypeScript 실무 경험 필수 ✓ 우대: #Next.js'), true, 'one hashtag is not a promo post');
+  assert.equal(toJobDraft({ title: 'Senior Full Stack Engineer; Angular/Node.js', url: 'https://board.example.test/jobs/9', description: 'Deep Angular expertise (required)' }), null, 'toJobDraft applies the description rules');
+});
+
 test('mapping helpers: job signals, explicit company names, privacy-filtered queries', () => {
   assert.equal(isJobPosting('아무 제목', new URL('https://www.jobkorea.co.kr/Recruit/GI_Read/1')), true);
   assert.equal(isJobPosting('Frontend Engineer', new URL('https://www.linkedin.com/jobs/view/1')), true);

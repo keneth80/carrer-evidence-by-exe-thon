@@ -123,7 +123,7 @@ test('AI 점검 실패는 숨기지 않는다: 규칙 점검 결과는 보여 �
   const failed = await runSupplementPipeline(harness(broken).deps, { facts: FACTS, patterns: PATTERNS, history: [], message: null, userMessages: [] });
   assert.equal(failed.kind, 'ok');
   assert.equal(failed.turn.pipeline.stages.find(stage => stage.key === 'review').state, 'failed');
-  assert.match(failed.turn.reply, /AI 점검/);
+  assert.match(failed.turn.reply, /HR 전문가 점검/);
   assert.equal(failed.turn.findings.length, failed.turn.pipeline.rule_findings);
 
   const { deps, calls, snapshots } = harness(mock, 'single');
@@ -255,7 +255,7 @@ test('진행 표시 계산: 건너뛴 단계는 세지 않고, 지금 단계·�
   assert.deepEqual(stale.stages.map(item => item.state), ['pending', 'pending', 'skipped', 'skipped'], 'another task\'s record is ignored');
   assert.equal(stale.percent, 0);
   assert.equal(progressView(null, null, 'single', false).total, 1);
-  assert.equal(stageSummary([stage('rules', 'done', '3개'), stage('review', 'failed', '실패(X)'), stage('draft', 'skipped')]), '규칙 점검 ✓ 3개 · AI 점검 ✕ 실패(X)');
+  assert.equal(stageSummary([stage('rules', 'done', '3개'), stage('review', 'failed', '실패(X)'), stage('draft', 'skipped')]), '규칙 점검 ✓ 3개 · HR 전문가 점검 ✕ 실패(X)');
   for (const file of ['progress.ts', 'similar.ts', 'AgentProgress.tsx', 'SupplementSection.tsx', 'SupplementTurnView.tsx']) {
     const code = readFileSync(new URL(`../apps/web/src/resume/${file}`, import.meta.url), 'utf8');
     assert.doesNotMatch(code, /from 'node:|packages\/tailor\/src\/supplement-pipeline\.ts'/, `${file} stays browser-safe`);

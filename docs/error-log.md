@@ -89,3 +89,13 @@
 - **수정 모델**: 메인 세션(claude-opus-5-5)
 - **검증 결과**: tests/extraction.test.mjs 9/9, npm test 144/144, 같은 문서 후보 0→198, ego 브라우저 합성 docx 확인
 - **유사 과거 오류**: 없음
+
+## E7 — 2026-11-19 22:10
+
+- **사용자 보고**: "첨부이미지를 보면 규칙 점검 결과라고 나오는데, 보완점이나 개선점은 안나오네. 테스트가 된건가?" / "직함은 여러번 있을 수 있고, 회사도 재입사일 때도 있어서 반복으로 나올 수 있는데, 그런걸 규칙으로 나오게 하면 안될거 같은데."
+- **재현 조건**: 확정 경력 100개 실제 이력서로 HR 전문가 점검(Liner live, staged). 합성 이력서(12~25개)로만 검증했었음.
+- **추정 원인**: ① AI 점검 응답이 최대 15개·긴 설명을 허용해 `max_completion_tokens` 4000에서 잘림(LINER_CHAT_TRUNCATED) → 설계대로 규칙 결과만 표시. ② 중복 규칙이 직함·회사·기간·기술까지 검사.
+- **수정 위치**: `packages/liner/src/persona.ts`(FINDING_PROMPT_ITEMS=8·FINDING_LENGTH_RULE), `packages/liner/src/supplement.ts`·`review.ts`·`tailor-stages.ts`(프롬프트에 적용), `packages/tailor/src/review.ts`(중복 안내는 업무·성과·기타 문장만)
+- **수정 모델**: 메인 세션
+- **검증 결과**: 재현 테스트 FAIL→PASS(`tests/resume-review.test.mjs`), npm test 193/193. 같은 실제 이력서로 실호출 재확인: 'HR 전문가 점검 ✓ 8개 추가', 질문 8개, 약 14초, 실패 표시 없음(내용은 기록하지 않음).
+- **유사 과거 오류**: 없음(실제 대용량 입력에서만 드러난 첫 사례)

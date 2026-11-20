@@ -20,7 +20,7 @@ function PipelineNote({ turn }: { turn: SupplementTurn }) {
     {pipeline.drafts_withheld && <p className="supp-withheld" role="note">근거 검토를 하지 못해 다듬은 초안은 보여 드리지 않았어요. 후보(내가 쓴 문장)는 그대로 추가할 수 있어요.</p>}
     {pipeline.dropped_drafts.length > 0 && <details className="supp-dropped">
       <summary>근거 검토에서 뺀 초안 {pipeline.dropped_drafts.length}개 보기</summary>
-      <ul>{pipeline.dropped_drafts.map((item, index) => <li key={index}><span className="muted">“{item.text}”</span> — {item.reason} <span className="tag">{item.by === 'critic' ? 'AI 검토' : '규칙 검사'}</span></li>)}</ul>
+      <ul>{pipeline.dropped_drafts.map((item, index) => <li key={index}><span className="muted">“{item.text}”</span> — {item.reason} <span className="tag">{item.by === 'critic' ? 'HR 전문가 검토' : '규칙 검사'}</span></li>)}</ul>
     </details>}
   </div>;
 }

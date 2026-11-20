@@ -38,9 +38,9 @@ export function AiReviewSection({ revisionId }: { revisionId: string }) {
   const working = review?.state === 'queued' || (reviewId !== null && review === null);
 
   return <div className="ai-review">
-    <h3>AI 점검 <span className="pill">{live ? 'Liner AI' : 'mock(규칙 기반 합성 응답)'}</span></h3>
-    {live && <p className="muted">확정 경력이 Liner(외부 AI)로 전송됩니다(최대 60일 보관, 해외 AI 제공사 경유 가능, 이메일·전화번호는 가림). 요청마다 유료 호출 1건이 쓰입니다.</p>}
-    <button className="outline small" disabled={busy || working} onClick={request}>{working ? '점검 중…' : review ? 'AI 점검 다시 받기' : 'AI 점검 받기'}</button>
+    <h3>전문가 점검 <span className="pill">{live ? 'Liner' : 'mock(규칙 기반 합성 응답)'}</span></h3>
+    {live && <p className="muted">확정 경력이 Liner(외부 서비스)로 전송됩니다(최대 60일 보관, 해외 제공사 경유 가능, 이메일·전화번호는 가림). 요청마다 유료 호출 1건이 쓰입니다.</p>}
+    <button className="outline small" disabled={busy || working} onClick={request}>{working ? '점검 중…' : review ? '전문가 점검 다시 받기' : '전문가 점검 받기'}</button>
     {error && <div className="error" role="alert">{error}</div>}
     {review?.state === 'failed' && <div className="error" role="alert">점검하지 못했어요({review.error_code}). 규칙 점검 결과는 위에서 그대로 볼 수 있습니다.</div>}
     {review?.state === 'succeeded' && <>
@@ -50,7 +50,7 @@ export function AiReviewSection({ revisionId }: { revisionId: string }) {
           <strong>{item.title}</strong> <span className="muted">{item.detail}</span>
           {item.question && <div className="muted">질문: {item.question}</div>}
         </li>)}</ul>}
-      <p className="muted">AI 점검은 안내입니다. 확정 경력은 바뀌지 않았고, 보완은 원본 수정 후 다시 올리기 또는 공고 맞춤 대화에서 할 수 있어요.</p>
+      <p className="muted">전문가 점검은 안내입니다. 확정 경력은 바뀌지 않았고, 보완은 원본 수정 후 다시 올리기 또는 공고 맞춤 대화에서 할 수 있어요.</p>
     </>}
   </div>;
 }

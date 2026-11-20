@@ -63,7 +63,7 @@ LINER_BUDGET_MICRO_USD=2000000
 CHAT_MODE=liner
 LINER_CHAT_MAX_CALLS=20
 LINER_CHAT_BUDGET_MICRO_USD=5000000
-LINER_CHAT_ROUTING=balanced
+LINER_CHAT_ROUTING=quality   # 결과 품질 우선(라우터가 요청마다 모델 선택)
 ```
 
 키 없이 실행하면 모든 AI 기능이 **mock**(규칙 기반 합성 응답)으로 동작하고, 화면에 mock임을 표시합니다.

@@ -12,11 +12,13 @@ export type RequirementCheck = { requirement_id: string; requirement: string; im
 export type JdFinding = { requirement_id: string; fact_ids: string[]; title: string; question: string };
 export type JdReviewInput = { job: ChatJob; facts: FactLike[]; checks: RequirementCheck[]; signal?: AbortSignal; call?: ChatCallContext };
 export type CriticChange = { index: number; operation: ProposedChange['operation']; before: string | null; after: string | null; fact_ids: string[] };
+export type JdExtractInput = { job: ChatJob; signal?: AbortSignal; call?: ChatCallContext };
 export type JdCriticInput = { job: ChatJob; facts: FactLike[]; userMessages: { id: string; content: string }[]; changes: CriticChange[]; signal?: AbortSignal; call?: ChatCallContext };
 // ②·④ 단계 provider. 대화 수정(③)은 기존 ChatProvider.respond를 그대로 쓴다.
-export type TailorStageProvider = { readonly mode: 'mock' | 'live'; review(input: JdReviewInput): Promise<unknown>; critic(input: JdCriticInput): Promise<unknown> };
+// extract: 요구사항 목록이 없는 공고(실시간 검색 요약)에서 ① 단계가 요구를 뽑는다. 없으면 추출 없이 대조만 한다.
+export type TailorStageProvider = { readonly mode: 'mock' | 'live'; extract?(input: JdExtractInput): Promise<unknown>; review(input: JdReviewInput): Promise<unknown>; critic(input: JdCriticInput): Promise<unknown> };
 
-export const JD_LIMITS = { findings: 8, questions: 8, reply: 2000, title: 80, question: 400 } as const;
+export const JD_LIMITS = { findings: 8, questions: 8, reply: 2000, title: 80, question: 400, requirements: 10, requirementText: 120 } as const;
 // 이름만 있는 사실(기술·직무·회사·기간·지역). 나머지(업무·성과·학력·자격·기타)는 문장 근거다.
 const NAME_CATEGORIES = new Set(['skill', 'role', 'employer', 'period', 'location']);
 const isSentence = (fact: FactLike) => !NAME_CATEGORIES.has(fact.category);
@@ -65,6 +67,35 @@ export function screenJdReview(raw: unknown, checks: RequirementCheck[], facts: 
   return { reply: value.reply.trim(), findings, questions: [...new Set(questions)].slice(0, JD_LIMITS.questions) };
 }
 
+// ① 추출 응답을 서버가 다시 거른다(품질 검증 2026-11-20: 실시간 검색 공고는 requirements=[]).
+// - source_quote는 공고 글에 그대로 있어야 한다(띄어쓰기 차이만 허용). 지어낸 인용은 뺀다.
+// - text의 영문 기술명·숫자는 인용에 있어야 한다(요구를 키우거나 바꾸지 않게).
+// - 중요도는 인용에 '필수'·'우대'가 있으면 그것을 따른다. id는 서버가 붙인다. 형식이 틀리면 null(닫힌 쪽).
+const squash = (value: string) => value.replace(/\s+/g, ' ').trim();
+const TEXT_TOKENS = /\d+(?:\.\d+)?|[A-Za-z][A-Za-z0-9.+#-]*/g;
+function importanceOf(quote: string, given: unknown): JobRequirement['importance'] {
+  if (/필수|자격\s*요건|required/i.test(quote)) return 'required';
+  if (/우대|preferred|plus/i.test(quote)) return 'preferred';
+  return given === 'required' || given === 'preferred' ? given : 'unknown';
+}
+export function screenExtractedRequirements(raw: unknown, contentText: string): JobRequirement[] | null {
+  const value = record(raw);
+  if (!value || !Array.isArray(value.requirements)) return null;
+  const source = squash(contentText);
+  const kept: JobRequirement[] = [];
+  for (const entry of value.requirements) {
+    const item = record(entry);
+    const requirement = text(item?.text, JD_LIMITS.requirementText);
+    const quote = typeof item?.source_quote === 'string' ? squash(item.source_quote) : '';
+    if (!item || !requirement || quote.length < 2 || !source.includes(quote)) continue;
+    if ((requirement.match(TEXT_TOKENS) ?? []).some(token => !quote.includes(token))) continue;
+    if (kept.some(found => found.text === requirement)) continue;
+    kept.push({ id: `req_x${kept.length + 1}`, text: requirement, importance: importanceOf(quote, item.importance), source_quote: quote });
+    if (kept.length >= JD_LIMITS.requirements) break;
+  }
+  return kept;
+}
+
 // ---- mock(규칙 기반 합성 응답). 질문만 만들고, 근거 검토는 근거에 없는 숫자·영문 기술명·범위 표현이 있으면 뺀다.
 
 const CRITIC_TOKENS = /\d+(?:\.\d+)?|[A-Za-z][A-Za-z0-9.+#-]*|리드|리딩|총괄|주도|이끌|책임|팀장/g;
@@ -83,9 +114,20 @@ function mockVerdict(change: CriticChange, sources: string): { index: number; ve
     : { index: change.index, verdict: 'keep', reason: '확정 경력·답변에 있는 내용만 썼어요.' };
 }
 
+// mock 추출: 글머리표·줄 단위 구절 중 요구 표현(경험·필수·우대·이상 등)이 있는 것만 그대로 인용한다.
+const REQUIREMENT_SIGNAL = /경험|필수|우대|이상|능숙|역량|자격|이해|가능하신/;
+function mockExtract(contentText: string) {
+  const parts = contentText.split(/\n|[✓✔•▶■◦●]|\s-\s|\.\s/).map(squash).filter(part => part.length >= 4 && part.length <= JD_LIMITS.requirementText);
+  const requirements = parts.filter(part => REQUIREMENT_SIGNAL.test(part) && !/#|D-\d/.test(part)).map(part => ({ text: part, importance: 'unknown', source_quote: part }));
+  return { requirements };
+}
+
 export function createMockTailorStageProvider(): TailorStageProvider {
   return {
     mode: 'mock',
+    async extract(input) {
+      return mockExtract(input.job.content_text);
+    },
     async review(input) {
       const open = input.checks.filter(check => check.status !== 'met');
       const findings = open.slice(0, JD_LIMITS.findings).map(check => mockQuestion(check, input.facts));

@@ -165,17 +165,19 @@ export function TailorPage({ sessionId }: { sessionId: string }) {
         <span className="muted">저장됨 {new Date(revision.created_at).toLocaleTimeString('ko-KR')}</span>
         {pendingFacts > 0 && <span className="tag edited">확인할 사실 {pendingFacts}</span>}
         {job.data_origin === 'synthetic' && <span className="pill">합성 공고</span>}
-        <span className="pill">{liveChat ? 'Liner AI 대화' : 'mock 대화'}</span>
+        <span className="pill">{liveChat ? 'Liner 연결 대화' : 'mock 대화'}</span>
       </div>
     </header>
     <nav className="tailor-tabs" aria-label="편집 영역">
-      {(['job', 'chat', 'preview'] as Tab[]).map(item => <button key={item} aria-pressed={tab === item} onClick={() => setTab(item)}>{item === 'job' ? '공고 요구' : item === 'chat' ? 'AI 대화' : '미리보기'}</button>)}
+      {(['job', 'chat', 'preview'] as Tab[]).map(item => <button key={item} aria-pressed={tab === item} onClick={() => setTab(item)}>{item === 'job' ? '공고 요구' : item === 'chat' ? 'HR 전문가 대화' : '미리보기'}</button>)}
     </nav>
     {error && <div role="alert" className="error">{error}</div>}
     <div className="tailor-grid">
       <section className="panel pane-job" aria-labelledby="req-title">
         <h2 id="req-title">공고 요구</h2>
         <p className="muted">요구를 누르면 연결된 경력 문장을 미리보기에서 강조합니다.</p>
+        {/* 실시간 검색 공고는 요약만 있어 요구 목록이 비어 있다. JD 점검이 공고 글에서 요구를 읽어 점검표로 보여 준다. */}
+        {job.requirements.length === 0 && <p className="muted" role="note">이 공고는 검색 요약만 있어 요구 목록이 없어요. ‘HR 전문가에게 JD 점검받기’를 누르면 공고 글에서 요구사항을 읽어 확정 경력과 대조해요(원문과 다를 수 있어요).</p>}
         <ul className="req-list">{job.requirements.map(requirement => {
           const reason = linked.get(requirement.id);
           const ids = reason?.fact_ids ?? [];
@@ -189,8 +191,8 @@ export function TailorPage({ sessionId }: { sessionId: string }) {
         })}</ul>
       </section>
       <section className="panel pane-chat" aria-labelledby="chat-title">
-        <h2 id="chat-title">AI 대화</h2>
-        {liveChat && <div className="notice" role="note"><strong>외부 AI로 전송</strong><span>이 대화의 메시지·확정 경력·공고 내용은 Liner(외부 AI 서비스)로 보내 응답을 만듭니다. Liner는 요청 내용을 최대 60일 보관하고 해외 AI 제공사를 거쳐 처리할 수 있습니다. 이메일·전화번호는 가려서 보내며, 주민등록번호 같은 민감한 정보는 쓰지 마세요. 메시지마다 유료 호출 1건이 쓰입니다.</span></div>}
+        <h2 id="chat-title">HR 전문가 대화</h2>
+        {liveChat && <div className="notice" role="note"><strong>외부 서비스로 전송</strong><span>이 대화의 메시지·확정 경력·공고 내용은 Liner(외부 서비스)로 보내 응답을 만듭니다. Liner는 요청 내용을 최대 60일 보관하고 해외 제공사를 거쳐 처리할 수 있습니다. 이메일·전화번호는 가려서 보내며, 주민등록번호 같은 민감한 정보는 쓰지 마세요. 메시지마다 유료 호출 1건이 쓰입니다.</span></div>}
         <ChatPanel liveChat={liveChat} messages={messages} proposals={proposals} revision={revision} facts={facts} head={head} draft={draft} status={status} busy={busy}
           suggestions={['이 공고에 맞춰 수정해줘', ...skillSuggestions]} progress={session.progress ?? null} pendingTaskId={pendingTask} onDraft={setDraft} onSend={send} onRetry={retry} onJdCheck={requestJdCheck}
           onAccept={acceptProposal} onReject={rejectProposal} onConfirmFact={confirmFact} />
@@ -206,7 +208,7 @@ export function TailorPage({ sessionId }: { sessionId: string }) {
       </section>
     </div>
     <div className="action-bar">
-      <span className="muted">{session.state === 'waiting_user' ? 'AI가 확인을 요청한 내용이 있어요.' : '적용한 변경만 문서에 반영됩니다.'}</span>
+      <span className="muted">{session.state === 'waiting_user' ? 'HR 전문가가 확인을 요청한 내용이 있어요.' : '적용한 변경만 문서에 반영됩니다.'}</span>
       <button className="primary" disabled={busy || status.kind === 'pending'} onClick={() => navigate(`/tailoring/${session.id}/final`)}>최종 제출본 확인</button>
     </div>
   </div>;

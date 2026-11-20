@@ -28,7 +28,7 @@ export type PipelineResult =
   | { kind: 'failed'; code: string; transmission: Transmission }
   | { kind: 'lease_lost' };
 
-export const STAGE_LABELS: Record<StageKey, string> = { rules: '규칙 점검', review: 'AI 점검', draft: '초안 작성', critic: '근거 검토', single: 'AI 응답' };
+export const STAGE_LABELS: Record<StageKey, string> = { rules: '규칙 점검', review: 'HR 전문가 점검', draft: '초안 작성', critic: '근거 검토', single: 'HR 전문가 응답' };
 
 function tracker(deps: PipelineDeps, keys: StageKey[]): Tracker<StageKey> {
   return createTracker<StageKey>({ taskId: deps.taskId, mode: deps.mode, now: deps.now, providerMode: deps.provider.mode, report: progress => deps.report(progress as TurnProgress), invoke: deps.invoke }, keys, STAGE_LABELS, 'SUPPLEMENT_PROVIDER_FAILED');
@@ -51,7 +51,7 @@ async function firstTurn(deps: PipelineDeps, input: PipelineInput, t: Tracker<St
   t.set('critic', 'skipped', '첫 점검에는 초안이 없어요');
   const findings = [...ruleFindings, ...aiFindings].slice(0, REVIEW_LIMITS.items);
   // AI 점검 실패를 숨기지 않는다: 규칙 점검 결과만 보여 준다고 답에 적는다.
-  const reply = screened?.reply || (failedCode ? `규칙 점검 결과 ${ruleFindings.length}개를 보여 드려요. AI 점검은 하지 못했어요(${failedCode}). 질문에 답하시면 이어서 도와드릴게요.` : '점검을 마쳤어요.');
+  const reply = screened?.reply || (failedCode ? `규칙 점검 결과 ${ruleFindings.length}개를 보여 드려요. HR 전문가 점검은 하지 못했어요(${failedCode}). 질문에 답하시면 이어서 도와드릴게요.` : '점검을 마쳤어요.');
   const pipeline: PipelineSummary = { mode: 'staged', stages: t.summary(), rule_findings: Math.min(ruleFindings.length, findings.length), ai_findings: findings.length - Math.min(ruleFindings.length, findings.length), drafts_reviewed: 0, dropped_drafts: [], drafts_withheld: false };
   return { kind: 'ok', turn: { reply, findings, candidates: [], drafts: [], questions: (screened?.questions ?? []).slice(0, SUPPLEMENT_LIMITS.questions), pipeline }, transmission: t.transmission() };
 }

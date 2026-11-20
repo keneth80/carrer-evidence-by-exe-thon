@@ -41,7 +41,7 @@ export function TailorPipelineNote({ turn }: { turn: TailorTurn }) {
     {pipeline.changes_withheld && <p className="supp-withheld" role="note">근거 검토를 하지 못해 수정안은 보여 드리지 않았어요. 내가 말한 경력 후보는 그대로 확인할 수 있어요.</p>}
     {pipeline.dropped_changes.length > 0 && <details className="supp-dropped">
       <summary>근거 검토에서 뺀 수정안 {pipeline.dropped_changes.length}개 보기</summary>
-      <ul>{pipeline.dropped_changes.map((item, index) => <li key={index}><span className="muted">“{item.text}”</span> — {item.reason} <span className="tag">{item.by === 'critic' ? 'AI 검토' : '규칙 검사'}</span></li>)}</ul>
+      <ul>{pipeline.dropped_changes.map((item, index) => <li key={index}><span className="muted">“{item.text}”</span> — {item.reason} <span className="tag">{item.by === 'critic' ? 'HR 전문가 검토' : '규칙 검사'}</span></li>)}</ul>
     </details>}
   </div>;
 }

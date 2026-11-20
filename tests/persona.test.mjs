@@ -4,7 +4,7 @@ import { HR_PERSONA, HR_CRITERIA } from '../packages/liner/src/persona.ts';
 import { buildChatRequest } from '../packages/liner/src/chat.ts';
 import { buildReviewRequest } from '../packages/liner/src/review.ts';
 import { buildSupplementRequest, buildReviewStageRequest, buildCriticRequest } from '../packages/liner/src/supplement.ts';
-import { buildJdReviewRequest, buildTailorCriticRequest } from '../packages/liner/src/tailor-stages.ts';
+import { buildJdReviewRequest, buildTailorCriticRequest, buildJdExtractRequest } from '../packages/liner/src/tailor-stages.ts';
 
 // 사용자 요청(2026-11-19): 모든 Liner 대화 호출은 HR 전문가 페르소나로 시작한다.
 // 페르소나는 관점·말투만 정하고, 호출마다 있는 근거 규칙이 그대로 남아야 한다. 합성 자료만 쓴다(전송 없음).
@@ -22,6 +22,7 @@ const requests = {
   supplementCritic: () => buildCriticRequest({ facts: FACTS, userMessages: [{ id: 'm1', content: '정산 화면을 만들었어요.' }], drafts: [{ index: 0, text: '정산 화면을 만들었습니다.', fact_ids: ['f2'] }] }, 'balanced', DAY),
   jdReview: () => buildJdReviewRequest({ job: JOB, facts: FACTS, checks: [] }, 'balanced', DAY),
   jdCritic: () => buildTailorCriticRequest({ job: JOB, facts: FACTS, userMessages: [], changes: [] }, 'balanced', DAY),
+  jdExtract: () => buildJdExtractRequest({ job: JOB }, 'balanced'),
 };
 
 test('페르소나: HR 전문가 관점이며 규칙보다 앞서지 않고, 합격 단정·사칭·근거 없는 사실을 막는다', () => {
@@ -71,4 +72,25 @@ test('내부 ID: 페르소나가 문장에 ID를 쓰지 말라고 하고, 서버
   assert.equal(out.verdicts[0].reason, '근거에 없음');
   assert.deepEqual(out.changes[0], { ...raw.changes[0], reason: '요구 연결' });
   assert.equal(raw.reply, '경력(fact_005)을 보완했어요.', 'input is not mutated');
+});
+
+test('HR 전문가다운 결과: 서류 통과 영향 순서, 검토자 관점 설명, 상황·행동·결과 질문, 긴 경력은 최근 중심, 공백은 단정 없이 묻기, 강점 먼저', async () => {
+  const { HR_REVIEW_GUIDE, HR_DRAFT_GUIDE } = await import('../packages/liner/src/persona.ts');
+  for (const rule of [/서류 통과/, /검토자/, /상황.*행동.*결과/, /최근 5~7년/, /공백/, /강점/]) assert.match(HR_REVIEW_GUIDE, rule);
+  for (const rule of [/동사/, /결과/, /근거/]) assert.match(HR_DRAFT_GUIDE, rule);
+  assert.ok(requests.supplementReview().messages[0].content.includes(HR_REVIEW_GUIDE));
+  assert.ok(requests.review().messages[0].content.includes(HR_REVIEW_GUIDE));
+  assert.ok(requests.jdReview().messages[0].content.includes(HR_REVIEW_GUIDE));
+  assert.ok(requests.supplement().messages[0].content.includes(HR_DRAFT_GUIDE));
+  assert.ok(requests.chat().messages[0].content.includes(HR_DRAFT_GUIDE));
+  for (const name of ['supplementCritic', 'jdCritic']) assert.ok(!requests[name]().messages[0].content.includes(HR_REVIEW_GUIDE), name);
+});
+
+test('표현 다듬기(품질 검증 2026-11-20): 점검 제목은 해요체 서술문, 답에 입력 필드 이름·영어 상태값 금지, 수정 답은 실제 changes만 말한다', async () => {
+  const { FINDING_LENGTH_RULE, TITLE_TONE_RULE } = await import('../packages/liner/src/persona.ts');
+  assert.match(TITLE_TONE_RULE, /해요체/);
+  assert.ok(FINDING_LENGTH_RULE.includes(TITLE_TONE_RULE));
+  for (const name of ['review', 'supplementReview', 'jdReview']) assert.ok(requests[name]().messages[0].content.includes(TITLE_TONE_RULE), name);
+  for (const word of ['checks', 'facts', 'met', 'weak', 'missing']) assert.ok(HR_PERSONA.includes(word), `persona forbids field name ${word} in prose`);
+  assert.match(requests.chat().messages[0].content, /changes에 실제로 담은 수정만/);
 });

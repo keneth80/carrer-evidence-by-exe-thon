@@ -91,9 +91,9 @@ export function SupplementSection({ documentId, extractionId, head, onConfirmed 
   const mode = session?.provider_mode ?? (live ? 'live' : 'mock');
 
   return <section className="panel supplement" aria-labelledby="supplement-title">
-    <h2 id="supplement-title">HR 전문가 이력서 점검·보완 <span className="pill">{mode === 'live' ? 'Liner AI' : 'mock(규칙 기반 합성 응답)'}</span></h2>
+    <h2 id="supplement-title">HR 전문가 이력서 점검·보완 <span className="pill">{mode === 'live' ? 'Liner' : 'mock(규칙 기반 합성 응답)'}</span></h2>
     <p className="muted">HR 전문가가 확정 경력을 점검하고 질문합니다. 답한 내용 중 <strong>내가 쓴 문장만</strong> 경력 후보가 되고, 추가하면 새 경력 버전으로 저장됩니다. HR 전문가가 숫자·기술·직책을 지어내 넣지 않습니다.</p>
-    {mode === 'live' && <p className="fine-print">대화 내용과 확정 경력이 Liner(외부 AI)로 전송됩니다(최대 60일 보관, 해외 AI 제공사 경유 가능, 이메일·전화번호는 가림). 턴마다 유료 호출 1건이 쓰입니다.</p>}
+    {mode === 'live' && <p className="fine-print">대화 내용과 확정 경력이 Liner(외부 서비스)로 전송됩니다(최대 60일 보관, 해외 제공사 경유 가능, 이메일·전화번호는 가림). 턴마다 유료 호출 1건이 쓰입니다.</p>}
     {!sessionId && <button className="primary" disabled={busy} onClick={start}>HR 전문가에게 점검받기</button>}
     {session && session.fact_revision_id !== session.head_fact_revision_id && <div className="notice">
       <strong>버전 안내</strong>
