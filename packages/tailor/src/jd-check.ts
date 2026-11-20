@@ -1,4 +1,5 @@
 import { containsTerm, explainMatch } from '../../search/src/match.ts';
+import { screenExample } from './example.ts';
 import type { JobRequirement } from '../../search/src/types.ts';
 import type { ChatCallContext, ChatJob } from './provider.ts';
 import type { FactLike, ProposedChange } from './types.ts';
@@ -9,7 +10,8 @@ import type { FactLike, ProposedChange } from './types.ts';
 
 export type RequirementStatus = 'met' | 'weak' | 'missing';
 export type RequirementCheck = { requirement_id: string; requirement: string; importance: JobRequirement['importance']; status: RequirementStatus; fact_ids: string[]; note: string };
-export type JdFinding = { requirement_id: string; fact_ids: string[]; title: string; question: string };
+// example: 작성 예시(S1-22, 계약 v0.7.7 선택 필드). 확정 경력에 없는 내용은 [빈칸].
+export type JdFinding = { requirement_id: string; fact_ids: string[]; title: string; question: string; example?: string | null };
 export type JdReviewInput = { job: ChatJob; facts: FactLike[]; checks: RequirementCheck[]; signal?: AbortSignal; call?: ChatCallContext };
 export type CriticChange = { index: number; operation: ProposedChange['operation']; before: string | null; after: string | null; fact_ids: string[] };
 export type JdExtractInput = { job: ChatJob; signal?: AbortSignal; call?: ChatCallContext };
@@ -53,6 +55,7 @@ export function screenJdReview(raw: unknown, checks: RequirementCheck[], facts: 
   if (!value || typeof value.reply !== 'string' || value.reply.length > JD_LIMITS.reply || !Array.isArray(value.findings) || !Array.isArray(value.questions)) return null;
   const open = new Set(checks.filter(check => check.status !== 'met').map(check => check.requirement_id));
   const known = new Set(facts.map(fact => fact.id));
+  const sources = facts.map(fact => fact.statement).join('\n');
   const findings: JdFinding[] = [];
   for (const entry of value.findings) {
     const item = record(entry);
@@ -60,7 +63,7 @@ export function screenJdReview(raw: unknown, checks: RequirementCheck[], facts: 
     const requirementId = typeof item?.requirement_id === 'string' ? item.requirement_id : '';
     if (!item || !question || !open.has(requirementId) || findings.some(found => found.requirement_id === requirementId)) continue;
     const factIds = Array.isArray(item.fact_ids) ? item.fact_ids.filter((id): id is string => typeof id === 'string' && known.has(id)) : [];
-    findings.push({ requirement_id: requirementId, fact_ids: [...new Set(factIds)], title: text(item.title, JD_LIMITS.title) ?? '확인할 요구', question });
+    findings.push({ requirement_id: requirementId, fact_ids: [...new Set(factIds)], title: text(item.title, JD_LIMITS.title) ?? '확인할 요구', question, example: screenExample(item.example, sources) });
     if (findings.length >= JD_LIMITS.findings) break;
   }
   const questions = value.questions.map(item => text(item, JD_LIMITS.question)).filter((item): item is string => Boolean(item));
@@ -102,8 +105,8 @@ const CRITIC_TOKENS = /\d+(?:\.\d+)?|[A-Za-z][A-Za-z0-9.+#-]*|리드|리딩|총�
 function mockQuestion(check: RequirementCheck, facts: FactLike[]): JdFinding {
   const names = facts.filter(fact => check.fact_ids.includes(fact.id)).map(fact => fact.statement).join(', ');
   return check.status === 'weak'
-    ? { requirement_id: check.requirement_id, fact_ids: check.fact_ids, title: '어디에 썼는지가 없어요', question: `${names}을(를) 어떤 업무에서 썼는지 한두 문장으로 알려 주실 수 있나요?` }
-    : { requirement_id: check.requirement_id, fact_ids: [], title: '확정 경력에서 찾지 못했어요', question: `‘${check.requirement}’ 관련해 직접 해 본 일이 있나요? 있다면 무엇을 했는지 알려 주세요. 없으면 넘어가도 괜찮아요.` };
+    ? { requirement_id: check.requirement_id, fact_ids: check.fact_ids, title: '어디에 썼는지가 없어요', question: `${names}을(를) 어떤 업무에서 썼는지 한두 문장으로 알려 주실 수 있나요?`, example: '[어떤 서비스·화면]에서 [이 기술]로 [무엇]을 개발했습니다.' }
+    : { requirement_id: check.requirement_id, fact_ids: [], title: '확정 경력에서 찾지 못했어요', question: `‘${check.requirement}’ 관련해 직접 해 본 일이 있나요? 있다면 무엇을 했는지 알려 주세요. 없으면 넘어가도 괜찮아요.`, example: '[관련 업무]에서 [직접 한 일]을 했습니다.' };
 }
 
 function mockVerdict(change: CriticChange, sources: string): { index: number; verdict: 'keep' | 'drop'; reason: string } {

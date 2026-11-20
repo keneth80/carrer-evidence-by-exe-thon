@@ -1,3 +1,4 @@
+import { ExampleBox } from '../resume/ExampleBox.tsx';
 import { useEffect, useState } from 'react';
 import { api, describeError } from '../resume/api.ts';
 import type { AiReview } from '../resume/api.ts';
@@ -49,6 +50,7 @@ export function AiReviewSection({ revisionId }: { revisionId: string }) {
         : <ul className="note-list">{review.items.map((item, index) => <li key={index}>
           <strong>{item.title}</strong> <span className="muted">{item.detail}</span>
           {item.question && <div className="muted">질문: {item.question}</div>}
+          {item.example && <ExampleBox text={item.example} />}
         </li>)}</ul>}
       <p className="muted">전문가 점검은 안내입니다. 확정 경력은 바뀌지 않았고, 보완은 원본 수정 후 다시 올리기 또는 공고 맞춤 대화에서 할 수 있어요.</p>
     </>}

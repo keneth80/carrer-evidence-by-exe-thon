@@ -34,7 +34,7 @@ function tracker(deps: PipelineDeps, keys: StageKey[]): Tracker<StageKey> {
   return createTracker<StageKey>({ taskId: deps.taskId, mode: deps.mode, now: deps.now, providerMode: deps.provider.mode, report: progress => deps.report(progress as TurnProgress), invoke: deps.invoke }, keys, STAGE_LABELS, 'SUPPLEMENT_PROVIDER_FAILED');
 }
 
-const asItem = (finding: { fact_ids: string[]; title: string; detail: string; question: string | null }): ReviewItem => ({ fact_ids: finding.fact_ids, title: finding.title, detail: finding.detail, question: finding.question });
+const asItem = (finding: { fact_ids: string[]; title: string; detail: string; question: string | null; example?: string | null }): ReviewItem => ({ fact_ids: finding.fact_ids, title: finding.title, detail: finding.detail, question: finding.question, example: finding.example ?? null });
 const sameFinding = (a: ReviewItem, b: ReviewItem) => a.title === b.title && a.fact_ids.join() === b.fact_ids.join();
 
 async function firstTurn(deps: PipelineDeps, input: PipelineInput, t: Tracker<StageKey>): Promise<PipelineResult> {

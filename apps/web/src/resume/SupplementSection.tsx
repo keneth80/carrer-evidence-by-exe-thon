@@ -3,6 +3,8 @@ import type { ResumeFact } from '../../../../packages/resume/src/types.ts';
 import { api, ApiError, describeError } from './api.ts';
 import type { FactRevision, SupplementCandidate, SupplementSession } from './api.ts';
 import { SupplementTurnView } from './SupplementTurnView.tsx';
+import { BLANK_LEFT } from './ExampleBox.tsx';
+import { hasBlank } from '../../../../packages/tailor/src/example.ts';
 import { AgentProgress } from './AgentProgress.tsx';
 import { replaceFact, replaceTarget } from './similar.ts';
 import { useLiveChat } from '../tailor/chatMode.ts';
@@ -64,6 +66,7 @@ export function SupplementSection({ documentId, extractionId, head, onConfirmed 
   };
   const send = async (content: string) => {
     if (!sessionId || !content.trim()) return;
+    if (hasBlank(content)) { setError(BLANK_LEFT); return; }
     setBusy(true); setError(null);
     try {
       await api.sendSupplement(sessionId, content, sendKey);
@@ -105,7 +108,7 @@ export function SupplementSection({ documentId, extractionId, head, onConfirmed 
       {session.messages.map(message => message.role === 'user'
         ? <div key={message.id} className="supp-user"><span className="fine-print">나</span><p>{message.content}</p></div>
         : message.turn && <SupplementTurnView key={message.id} turn={message.turn} busy={busy || pending} isAdded={isAdded} factText={factText} targetFor={targetFor}
-          onAnswer={question => setText(current => current || `‘${question}’에 대한 답: `)} onAdd={add} onReplace={replace} onAdoptDraft={draft => send(draft)} />)}
+          onAnswer={(question, example) => setText(current => example ? [current.trim(), `‘${question}’에 대한 답: ${example}`].filter(Boolean).join('\n\n') : current || `‘${question}’에 대한 답: `)} onAdd={add} onReplace={replace} onAdoptDraft={draft => send(draft)} />)}
       {pending && <AgentProgress progress={session.progress} taskId={session.latest_task?.id ?? null} mode={session.progress?.mode ?? 'staged'} firstTurn={!session.messages.some(message => message.role === 'user')} />}
       {failed && <div className="error" role="alert">응답을 만들지 못했어요({failed}). 메시지를 다시 보내 주세요.</div>}
       <div className="supp-input">

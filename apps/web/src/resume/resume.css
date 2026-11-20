@@ -133,3 +133,9 @@ mark{background:#ffe8a3;color:inherit;border-radius:3px;padding:0 1px}
 .supp-withheld{margin:0;color:#906722;background:#fff3dc;border-radius:6px;padding:4px 8px}
 .supp-dropped summary{cursor:pointer;color:#355965;font-weight:650}
 .supp-dropped ul{margin:4px 0 0;padding-left:18px;display:grid;gap:4px}
+
+/* 점검 항목의 작성 예시(S1-22). [빈칸]은 사용자가 채울 곳이라 눈에 띄게 표시한다. */
+.example-box{margin-top:6px;padding:10px 12px;border:1px dashed #b9d3d1;border-radius:8px;background:#f6fbfa;display:grid;gap:6px;justify-items:start}
+.example-label{font-size:12px;font-weight:700;color:#2b5f66}
+.example-text{margin:0;white-space:pre-wrap;font-size:13px;line-height:1.55;color:#22343a}
+.example-text mark.blank{background:#fff1c7;color:#6b4a00;border-radius:4px;padding:0 3px}

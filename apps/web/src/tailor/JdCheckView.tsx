@@ -1,6 +1,7 @@
 import type { ResumeFact } from '../../../../packages/resume/src/types.ts';
 import type { RequirementCheck, TailorTurn } from '../resume/api.ts';
 import { stageSummary } from '../resume/progress.ts';
+import { ExampleBox } from '../resume/ExampleBox.tsx';
 
 // 공고(JD) 맞춤 점검 결과(DECISIONS S1-18). 요구사항마다 충족·근거 약함·미기재와 근거 경력, 에이전트 질문을 보여 준다.
 // 미기재는 '확정 경력에서 찾지 못함'이며 경험 없음이 아니다. 답하기를 누르면 입력창에 요구를 붙여 사용자가 직접 쓴다.
@@ -28,6 +29,7 @@ export function JdCheckView({ turn, facts, busy, onAnswer }: Props) {
         {evidence.length > 0 && item.status === 'weak' && <p className="jd-evidence muted">{item.note}</p>}
         {finding && <div className="jd-question">질문: {finding.question}
           <button type="button" className="ghost" disabled={busy} onClick={() => onAnswer(`‘${item.requirement}’ 관련: `)}>이 요구에 답하기</button></div>}
+        {finding?.example && <ExampleBox text={finding.example} onUse={busy ? undefined : () => onAnswer(`‘${item.requirement}’ 관련: ${finding.example}`)} />}
       </li>;
     })}</ul>
   </div>;

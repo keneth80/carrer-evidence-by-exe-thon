@@ -1,5 +1,6 @@
 import { FACT_CATEGORIES } from '../../resume/src/types.ts';
 import type { FactCategory } from '../../resume/src/types.ts';
+import { hasBlank, screenExample } from './example.ts';
 import { checkSupported } from './guard.ts';
 import { reviewFacts } from './review.ts';
 import { REVIEW_LIMITS } from './review-provider.ts';
@@ -47,7 +48,8 @@ const MEASURED = /\d+(\.\d+)?\s*(%|배|건|명|개|억|만\s*원|초|분|시간|
 const record = (value: unknown): Record<string, unknown> | null => typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const textList = (value: unknown, max: number): string[] => Array.isArray(value) ? value.filter((item): item is string => isText(item, max)).map(item => item.trim()) : [];
 
-export function screenFindings(value: unknown, known: Set<string>): ReviewItem[] {
+// sources: 확정 경력 문장 전체. 작성 예시(example)는 이 범위 안의 내용과 [빈칸]만 허용한다(S1-22).
+export function screenFindings(value: unknown, known: Set<string>, sources: string): ReviewItem[] {
   if (!Array.isArray(value)) return [];
   const items: ReviewItem[] = [];
   for (const entry of value) {
@@ -55,7 +57,7 @@ export function screenFindings(value: unknown, known: Set<string>): ReviewItem[]
     if (!item || !isText(item.title, REVIEW_LIMITS.title) || !isText(item.detail, REVIEW_LIMITS.detail)) continue;
     if (item.question !== null && !isText(item.question, REVIEW_LIMITS.question)) continue;
     const ids = Array.isArray(item.fact_ids) ? item.fact_ids.filter((id): id is string => typeof id === 'string' && known.has(id)) : [];
-    items.push({ fact_ids: [...new Set(ids)], title: item.title.trim(), detail: item.detail.trim(), question: item.question === null ? null : String(item.question).trim() });
+    items.push({ fact_ids: [...new Set(ids)], title: item.title.trim(), detail: item.detail.trim(), question: item.question === null ? null : String(item.question).trim(), example: screenExample(item.example, sources) });
     if (items.length >= REVIEW_LIMITS.items) break;
   }
   return items;
@@ -79,6 +81,8 @@ export function screenCandidates(value: unknown, facts: FactLike[], messages: Us
     const item = record(entry);
     if (!item || !isText(item.statement, SUPPLEMENT_LIMITS.statement) || !FACT_CATEGORIES.includes(item.category as FactCategory)) continue;
     const own = ownSentence(item.statement, messages);
+    // 작성 예시의 [빈칸]이 남은 문장은 아직 사실이 아니다(S1-22).
+    if (own && hasBlank(own.text)) { questions.push('빈칸 [ ]이 남은 문장은 경력 후보로 만들지 않았어요. 빈칸을 실제 내용으로 채우거나 지운 뒤 다시 보내 주세요.'); continue; }
     if (!own || own.text.length > SUPPLEMENT_LIMITS.statement) { questions.push('사용자 메시지에 없는 내용은 경력 후보로 만들지 않았어요. 사실이면 직접 말해 주세요.'); continue; }
     if (existing.has(squash(own.text))) { questions.push('이미 확정 경력에 있는 문장은 후보로 다시 만들지 않았어요.'); continue; }
     if (kept.some(candidate => squash(candidate.statement) === squash(own.text))) continue;
@@ -128,7 +132,7 @@ export function screenSupplement(raw: unknown, context: { facts: FactLike[]; use
   const value = record(raw);
   if (!value || !isText(value.reply, SUPPLEMENT_LIMITS.reply, 0) || !Array.isArray(value.questions)) return null;
   const questions = textList(value.questions, SUPPLEMENT_LIMITS.question);
-  const findings = screenFindings(value.findings, new Set(context.facts.map(fact => fact.id)));
+  const findings = screenFindings(value.findings, new Set(context.facts.map(fact => fact.id)), context.facts.map(fact => fact.statement).join('\n'));
   const candidates = screenCandidates(value.candidates, context.facts, context.userMessages, questions);
   const drafts = screenDrafts(value.drafts, context.facts, context.userMessages, questions);
   return { reply: value.reply.trim(), findings, candidates, drafts, questions: [...new Set(questions)].slice(0, SUPPLEMENT_LIMITS.questions) };
@@ -138,7 +142,7 @@ export function screenSupplement(raw: unknown, context: { facts: FactLike[]; use
 export function screenReviewStage(raw: unknown, facts: FactLike[]): { reply: string; findings: ReviewItem[]; questions: string[] } | null {
   const value = record(raw);
   if (!value || !isText(value.reply, SUPPLEMENT_LIMITS.reply, 0) || !Array.isArray(value.findings) || !Array.isArray(value.questions)) return null;
-  return { reply: value.reply.trim(), findings: screenFindings(value.findings, new Set(facts.map(fact => fact.id))), questions: textList(value.questions, SUPPLEMENT_LIMITS.question) };
+  return { reply: value.reply.trim(), findings: screenFindings(value.findings, new Set(facts.map(fact => fact.id)), facts.map(fact => fact.statement).join('\n')), questions: textList(value.questions, SUPPLEMENT_LIMITS.question) };
 }
 
 // ③ 초안 단계 응답: 후보는 사용자 문장만 남기고, 초안은 형식만 거른 채 ④ 근거 검토로 넘긴다.
@@ -186,6 +190,7 @@ function mockReviewFindings(facts: FactLike[], ruleFindings: ReviewItem[]): Revi
   const covered = new Set(ruleFindings.flatMap(item => item.fact_ids));
   return facts.filter(fact => SCOPE.test(fact.statement) && !covered.has(fact.id)).slice(0, 3).map(fact => ({
     fact_ids: [fact.id], title: '맡은 범위를 확인해 주세요', detail: '리드·총괄 같은 범위 표현은 팀 규모나 직접 맡은 일이 함께 있으면 더 정확해요.', question: '직접 맡은 범위와 함께한 인원을 알려 주실 수 있나요?',
+    example: '[인원]명 팀에서 [직접 맡은 범위: 설계·일정·코드 리뷰 등]를 맡았습니다.',
   }));
 }
 
@@ -198,7 +203,7 @@ export function createMockSupplementProvider(): SupplementProvider {
         const review = reviewFacts(input.facts);
         return {
           reply: `mock 점검(규칙 기반 합성 응답): 확정 경력 ${review.checked}개를 훑고 보완하면 좋은 점 ${review.findings.length}개를 찾았어요. 아래 질문에 답해 주시면 답한 문장을 경력 후보로 정리해 드릴게요.`,
-          findings: review.findings.map(item => ({ fact_ids: item.fact_ids, title: item.title, detail: item.detail, question: item.question })),
+          findings: review.findings.map(item => ({ fact_ids: item.fact_ids, title: item.title, detail: item.detail, question: item.question, example: item.example ?? null })),
           candidates: [], drafts: [], questions: [],
         };
       }

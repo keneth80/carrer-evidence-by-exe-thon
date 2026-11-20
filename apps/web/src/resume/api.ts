@@ -13,7 +13,7 @@ export type ResumeDocument = {
 export type Task = { id: string; kind?: string; state: string; error_code: string | null; cancel_requested?: boolean; provider_transmission?: string; result_ids?: string[]; updated_at: string };
 export type DocumentSummary = { document: ResumeDocument; current_fact_revision_id: string | null; latest_task: Task | null };
 export type ExtractionDraft = { id: string; document_id: string; status: 'review_required' | 'failed'; facts: ResumeFact[]; warnings: string[]; created_at: string };
-export type AiReview = { id: string; fact_revision_id: string; task_id: string; provider_mode: 'mock' | 'live'; state: 'queued' | 'succeeded' | 'failed'; summary: string | null; items: { fact_ids: string[]; title: string; detail: string; question: string | null }[]; error_code: string | null; created_at: string; updated_at: string };
+export type AiReview = { id: string; fact_revision_id: string; task_id: string; provider_mode: 'mock' | 'live'; state: 'queued' | 'succeeded' | 'failed'; summary: string | null; items: { fact_ids: string[]; title: string; detail: string; question: string | null; example?: string | null }[]; error_code: string | null; created_at: string; updated_at: string };
 // 기본 이력서 보완 대화(S1-16). candidates는 사용자 메시지 문장이고, drafts는 사실이 아닌 문장 제안이다.
 export type SupplementCandidate = { statement: string; category: ResumeFact['category']; supplements_fact_id: string | null; message_id: string };
 // 단계별 실행 요약·진행(DECISIONS S1-17). stages는 서버가 정한 순서·이름 그대로 보여 준다.
@@ -34,7 +34,7 @@ export type JobSnapshot = {
 export type TailoringSession = { id: string; job_snapshot_id: string; fact_revision_id: string; current_resume_revision_id: string | null; revision: number; state: 'editing' | 'ready' | 'waiting_user' | 'closed'; created_at: string; progress?: SupplementProgress | null };
 // 공고(JD) 맞춤 대화 턴 결과(v0.7.6, S1-18). 서버 packages/tailor/src/tailor-pipeline.ts TailorTurn과 같은 모양이다.
 export type RequirementCheck = { requirement_id: string; requirement: string; importance: 'required' | 'preferred' | 'unknown'; status: 'met' | 'weak' | 'missing'; fact_ids: string[]; note: string };
-export type JdFinding = { requirement_id: string; fact_ids: string[]; title: string; question: string };
+export type JdFinding = { requirement_id: string; fact_ids: string[]; title: string; question: string; example?: string | null };
 export type TailorPipeline = { mode: 'staged' | 'single'; stages: SupplementStage[]; requirements_checked: number; ai_findings: number; changes_reviewed: number; dropped_changes: { text: string; reason: string; by: 'critic' | 'guard' }[]; changes_withheld: boolean };
 export type TailorTurn = { kind: 'jd_check' | 'answer'; requirements: RequirementCheck[]; findings: JdFinding[]; pipeline: TailorPipeline };
 export type TailoringMessage = { id: string; session_id: string; role: 'user' | 'assistant'; content: string; base_resume_revision_id: string | null; created_at: string; turn?: TailorTurn | null };

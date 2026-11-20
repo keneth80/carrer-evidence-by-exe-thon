@@ -1,3 +1,4 @@
+import { ruleExample } from './example.ts';
 import { findSlop } from './slop.ts';
 import { patternsFor } from './patterns.ts';
 import type { RolePatterns } from './patterns.ts';
@@ -10,7 +11,8 @@ import type { FactLike } from './types.ts';
 
 export type ReviewSeverity = 'warn' | 'info';
 export type ReviewKind = 'missing_role' | 'missing_period' | 'no_result' | 'broad_statement' | 'slop' | 'long_statement' | 'duplicate' | 'few_skills';
-export type ReviewFinding = { kind: ReviewKind; severity: ReviewSeverity; fact_ids: string[]; title: string; detail: string; question: string | null };
+// example: 작성 예시(S1-22). 원래 문장을 나누거나 평가어를 뺀 문장, 또는 [빈칸] 틀. 예시가 맞지 않는 항목(중복)은 null.
+export type ReviewFinding = { kind: ReviewKind; severity: ReviewSeverity; fact_ids: string[]; title: string; detail: string; question: string | null; example?: string | null };
 export type ResumeReview = { patterns: RolePatterns; findings: ReviewFinding[]; checked: number };
 
 const BROAD = /(업무|개발|운영|프로젝트)\s*전반|다양한\s*(업무|프로젝트)|여러\s*(업무|프로젝트)|각종\s*업무|기타\s*업무/;
@@ -66,5 +68,6 @@ export function reviewFacts(facts: FactLike[]): ResumeReview {
     findings.push({ kind: 'few_skills', severity: 'info', fact_ids: skills.map(fact => fact.id), title: '확인된 기술이 적어요', detail: `기술 항목이 ${skills.length}개입니다. 실제로 쓴 기술이 더 있다면 원본에 적어 주세요. 검색은 확인된 기술만 씁니다.`, question: null });
   }
   const order: ReviewSeverity[] = ['warn', 'info'];
-  return { patterns, findings: findings.sort((a, b) => order.indexOf(a.severity) - order.indexOf(b.severity)), checked: facts.length };
+  const withExamples = findings.map(finding => ({ ...finding, example: ruleExample(finding, facts) }));
+  return { patterns, findings: withExamples.sort((a, b) => order.indexOf(a.severity) - order.indexOf(b.severity)), checked: facts.length };
 }

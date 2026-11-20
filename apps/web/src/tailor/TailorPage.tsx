@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { explainMatch } from '../../../../packages/search/src/match.ts';
 import { checkRequirements } from '../../../../packages/tailor/src/jd-check.ts';
+import { hasBlank } from '../../../../packages/tailor/src/example.ts';
+import { BLANK_LEFT } from '../resume/ExampleBox.tsx';
 import type { ResumeFact } from '../../../../packages/resume/src/types.ts';
 import { api, ApiError, describeError } from '../resume/api.ts';
 import type { EditProposal } from '../resume/api.ts';
@@ -105,6 +107,7 @@ export function TailorPage({ sessionId }: { sessionId: string }) {
   const send = async () => {
     const content = draft.trim();
     if (!content) return;
+    if (hasBlank(content)) { setError(BLANK_LEFT); return; }
     setBusy(true); setError(null);
     try {
       const accepted = await api.sendMessage(session.id, { expected_resume_revision_id: revision.id, content }, sendKey);

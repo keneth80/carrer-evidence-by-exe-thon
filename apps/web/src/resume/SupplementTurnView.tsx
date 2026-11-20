@@ -1,5 +1,6 @@
 import type { ResumeFact } from '../../../../packages/resume/src/types.ts';
 import type { SupplementCandidate, SupplementTurn } from './api.ts';
+import { ExampleBox } from './ExampleBox.tsx';
 import { categoryLabel } from './FactEditor.tsx';
 import { stageSummary } from './progress.ts';
 
@@ -8,7 +9,8 @@ import { stageSummary } from './progress.ts';
 type Props = {
   turn: SupplementTurn; busy: boolean; isAdded: (candidate: SupplementCandidate) => boolean; factText: (id: string) => string | null;
   targetFor: (candidate: SupplementCandidate) => ResumeFact | null;
-  onAnswer: (question: string) => void; onAdd: (candidate: SupplementCandidate) => void; onReplace: (candidate: SupplementCandidate, targetId: string) => void; onAdoptDraft: (text: string) => void;
+  // example이 있으면 '이 예시로 답하기'(입력창에 예시를 넣음), 없으면 질문만 붙인다.
+  onAnswer: (question: string, example?: string) => void; onAdd: (candidate: SupplementCandidate) => void; onReplace: (candidate: SupplementCandidate, targetId: string) => void; onAdoptDraft: (text: string) => void;
 };
 
 // 끝난 턴의 단계 요약과, 근거 검토에서 뺀 초안의 이유(S1-17).
@@ -34,6 +36,7 @@ export function SupplementTurnView({ turn, busy, isAdded, factText, targetFor, o
         <strong>{item.title}</strong> <span className="muted">{item.detail}</span>
         {item.fact_ids.length > 0 && <div className="fine-print">대상: {item.fact_ids.map(id => factText(id)).filter(Boolean).map(text => `“${text}”`).join(', ')}</div>}
         {item.question && <div className="supp-question">질문: {item.question} <button type="button" className="ghost" onClick={() => onAnswer(item.question!)}>이 질문에 답하기</button></div>}
+        {item.example && <ExampleBox text={item.example} onUse={() => onAnswer(item.question ?? item.title, item.example!)} />}
       </li>)}
     </ul>}
     {turn.candidates.length > 0 && <div className="supp-block">

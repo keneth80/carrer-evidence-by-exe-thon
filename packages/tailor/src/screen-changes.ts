@@ -1,4 +1,5 @@
 import { applyChanges } from './blocks.ts';
+import { hasBlank } from './example.ts';
 import { checkChange } from './guard.ts';
 import { findSlop } from './slop.ts';
 import { userSentenceFor } from './user-sentence.ts';
@@ -21,6 +22,8 @@ export function screenChanges(output: ChatOutput, context: ScreenContext): { cha
       const own = shaped ? userSentenceFor(context.userMessage, change.after!) : null;
       if (!shaped || change.after!.length > TEXT_LIMIT) questions.push(`사실 확인 후보의 형식이 맞지 않거나 ${TEXT_LIMIT}자를 넘어 제외했어요.`);
       else if (!own || own.length > TEXT_LIMIT) questions.push('사용자 메시지에 없는 내용을 경력 정보 후보로 만든 제안은 제외했어요.');
+      // 작성 예시의 [빈칸]이 남은 문장은 아직 사실이 아니다(S1-22).
+      else if (hasBlank(own)) questions.push('빈칸 [ ]이 남은 문장은 경력 정보 후보로 만들지 않았어요. 빈칸을 실제 내용으로 채우거나 지운 뒤 다시 보내 주세요.');
       else if (context.blocks.some(block => block.id === change.block_id) || kept.some(item => item.block_id === change.block_id)) questions.push('같은 내용이 이미 문서나 다른 제안에 있어 다시 넣지 않았어요.');
       else kept.push({ ...change, after: own });
       continue;

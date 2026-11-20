@@ -18,6 +18,8 @@ export const LINER_CHAT_MODEL = 'liner-claude-router';
 export const LINER_CHAT_ROUTING = ['cost', 'balanced', 'quality'] as const;
 export type LinerChatRouting = typeof LINER_CHAT_ROUTING[number];
 export const MAX_COMPLETION_TOKENS = 4000;
+// 점검 호출(항목마다 작성 예시가 붙어 응답이 길다, S1-22)의 출력 상한. 예약 금액도 이 값으로 잡는다.
+export const REVIEW_MAX_COMPLETION_TOKENS = 6000;
 const DEFAULT_TIMEOUT_MS = 110_000; // 엣지 프록시가 약 125초 무응답이면 HTML 524를 돌려준다.
 const JOB_TEXT_LIMIT = 6000;
 
@@ -103,8 +105,8 @@ export function buildChatRequest(input: ChatInput, routing: LinerChatRouting) {
 }
 
 // 문자 수를 토큰 수 상한으로 본다(한국어·JSON 모두 1자 ≥ 0.25토큰이라 과대 추정). 출력은 최대 토큰을 최악 가격으로.
-export function reserveMicroUsd(body: string): number {
-  return Math.ceil(body.length * WORST_PRICE.input + MAX_COMPLETION_TOKENS * WORST_PRICE.output);
+export function reserveMicroUsd(body: string, maxCompletionTokens = MAX_COMPLETION_TOKENS): number {
+  return Math.ceil(body.length * WORST_PRICE.input + maxCompletionTokens * WORST_PRICE.output);
 }
 
 export function usageMicroUsd(model: string, promptTokens: number, completionTokens: number): number {
@@ -133,7 +135,8 @@ type Completion = { model?: unknown; choices?: { finish_reason?: unknown; messag
 export async function callLinerJson(deps: LinerChatDeps, call: ChatCallContext | undefined, request: object, signal?: AbortSignal): Promise<unknown> {
   if (!call) throw new ChatProviderError('LINER_CALL_CONTEXT_REQUIRED', '유료 대화 호출은 작업 원장 없이 보내지 않습니다.', 'not_dispatched');
   const body = JSON.stringify(request);
-  const reserved = deps.ledger.reserve(call, sha256(body), reserveMicroUsd(body), 'chat');
+  const maxTokens = (request as { max_completion_tokens?: unknown }).max_completion_tokens;
+  const reserved = deps.ledger.reserve(call, sha256(body), reserveMicroUsd(body, typeof maxTokens === 'number' ? maxTokens : MAX_COMPLETION_TOKENS), 'chat');
   if (!reserved.ok) throw new ChatProviderError(reserved.code, REFUSED[reserved.code] ?? REFUSED.LINER_LEASE_NOT_HELD, 'not_dispatched');
   if (signal?.aborted || !deps.ledger.dispatch(reserved.callId)) {
     deps.ledger.settle(reserved.callId, 'failed', 0);

@@ -3996,6 +3996,19 @@
               "type": "null"
             }
           ]
+        },
+        "example": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "v0.7.7 작성 예시(DECISIONS S1-22). 사실이 아닌 문장 틀이며, 확정 경력에 없는 수치·기술·범위는 [빈칸]으로 남긴다. 서버가 빈칸 밖 표현이 확정 경력에 있는지 검사하고, 맞지 않으면 null. 이전 응답에는 없다."
         }
       },
       "required": [
@@ -4829,6 +4842,19 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 400
+        },
+        "example": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "v0.7.7 작성 예시(DECISIONS S1-22). 사실이 아닌 문장 틀이며, 확정 경력에 없는 수치·기술·범위는 [빈칸]으로 남긴다. 서버가 빈칸 밖 표현이 확정 경력에 있는지 검사하고, 맞지 않으면 null. 이전 응답에는 없다."
         }
       },
       "required": [
