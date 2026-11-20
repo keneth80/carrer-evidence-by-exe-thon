@@ -20,7 +20,10 @@ export type SupplementCandidate = { statement: string; category: ResumeFact['cat
 export type SupplementStage = { key: string; label: string; state: 'pending' | 'running' | 'done' | 'skipped' | 'failed'; note: string | null };
 export type SupplementPipeline = { mode: 'staged' | 'single'; stages: SupplementStage[]; rule_findings: number; ai_findings: number; drafts_reviewed: number; dropped_drafts: { text: string; reason: string; by: 'critic' | 'guard' }[]; drafts_withheld: boolean };
 export type SupplementProgress = { task_id: string; mode: 'staged' | 'single'; stages: (SupplementStage & { started_at: string | null; finished_at: string | null })[]; started_at: string };
-export type SupplementTurn = { reply: string; findings: AiReview['items']; candidates: SupplementCandidate[]; drafts: { text: string; fact_ids: string[]; note: string }[]; questions: string[]; pipeline?: SupplementPipeline };
+// 점검 항목별 추천 문장(v0.7.8, S1-24). 이 턴이 추천 응답이면 suggestion이 있고, 화면은 해당 점검 항목 아래에 보여 준다.
+export type SuggestionOption = { style: 'concise' | 'scope' | 'result'; text: string; fact_ids: string[] };
+export type SuggestionSet = { source_message_id: string; finding_index: number; finding_title: string; target_fact_ids: string[]; options: SuggestionOption[] };
+export type SupplementTurn = { reply: string; findings: AiReview['items']; candidates: SupplementCandidate[]; drafts: { text: string; fact_ids: string[]; note: string }[]; questions: string[]; pipeline?: SupplementPipeline; suggestion?: SuggestionSet };
 export type SupplementMessage = { id: string; role: 'user' | 'assistant'; content: string; turn: SupplementTurn | null; created_at: string };
 export type SupplementSession = { id: string; document_id: string; fact_revision_id: string; head_fact_revision_id: string | null; provider_mode: 'mock' | 'live'; state: 'open' | 'closed'; messages: SupplementMessage[]; latest_task: Task | null; progress: SupplementProgress | null; created_at: string; updated_at: string };
 export type SourceText = { document_id: string; extraction_id: string; input_kind: string; pages: { page: number | null; text: string }[] };
@@ -96,6 +99,8 @@ export const api = {
   aiReview: (id: string) => call<AiReview>('GET', `/api/v1/resume-ai-reviews/${id}`),
   createSupplement: (revisionId: string, key: string) => call<{ task: Task; resource_id: string }>('POST', `/api/v1/resume-fact-revisions/${revisionId}/supplement-sessions`, '{}', 'application/json', key),
   supplement: (id: string) => call<SupplementSession>('GET', `/api/v1/resume-supplement-sessions/${id}`),
+  suggestSupplement: (id: string, body: { message_id: string; finding_index: number }, key: string) => call<{ task: Task; resource_id: string }>('POST', `/api/v1/resume-supplement-sessions/${id}/suggestions`, JSON.stringify(body), 'application/json', key),
+  recordStatement: (id: string, content: string, key: string) => call<SupplementMessage>('POST', `/api/v1/resume-supplement-sessions/${id}/statements`, JSON.stringify({ content }), 'application/json', key),
   sendSupplement: (id: string, content: string, key: string) => call<{ task: Task; resource_id: string }>('POST', `/api/v1/resume-supplement-sessions/${id}/messages`, JSON.stringify({ content }), 'application/json', key),
   confirm: (documentId: string, body: { extraction_id: string; expected_parent_revision_id: string | null; facts: ResumeFact[] }, key: string) =>
     call<FactRevision>('POST', `/api/v1/resume-documents/${documentId}/fact-revisions`, JSON.stringify(body), 'application/json', key),

@@ -4239,6 +4239,10 @@
         },
         "pipeline": {
           "$ref": "#/$defs/ResumeSupplementPipeline"
+        },
+        "suggestion": {
+          "$ref": "#/$defs/ResumeSupplementSuggestion",
+          "description": "v0.7.8 이 턴이 추천 문장 응답이면 있다(findings·candidates·drafts는 빈 배열)."
         }
       },
       "required": [
@@ -4990,6 +4994,111 @@
       },
       "required": [
         "expected_resume_revision_id"
+      ],
+      "additionalProperties": false
+    },
+    "ResumeSupplementSuggestionRequest": {
+      "type": "object",
+      "description": "v0.7.8 점검 항목별 추천 문장 요청(DECISIONS S1-24). 같은 보완 대화의 assistant 메시지(message_id)에 있는 점검 항목(finding_index)만 대상이다.",
+      "properties": {
+        "message_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "finding_index": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "message_id",
+        "finding_index"
+      ],
+      "additionalProperties": false
+    },
+    "ResumeSupplementStatementRequest": {
+      "type": "object",
+      "description": "v0.7.8 고른 추천 문장(또는 직접 쓴 문장)을 내 진술로 기록(DECISIONS S1-24). 모델을 부르지 않는다. [빈칸]이 남은 문장은 400 STATEMENT_HAS_BLANK.",
+      "properties": {
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "additionalProperties": false
+    },
+    "ResumeSupplementSuggestion": {
+      "type": "object",
+      "description": "v0.7.8 점검 항목별 추천 문장(DECISIONS S1-24). 경력 사실이 아니다. 확정 경력에 없는 내용은 [빈칸]이며, 서버가 근거·빈칸 검사와 별도 근거 검토를 거친 문장만 담는다. 근거 검토를 못 하면 options는 빈 배열.",
+      "properties": {
+        "source_message_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "finding_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "finding_title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "target_fact_ids": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "options": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "properties": {
+              "style": {
+                "type": "string",
+                "enum": [
+                  "concise",
+                  "scope",
+                  "result"
+                ]
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "fact_ids": {
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "required": [
+              "style",
+              "text",
+              "fact_ids"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "source_message_id",
+        "finding_index",
+        "finding_title",
+        "target_fact_ids",
+        "options"
       ],
       "additionalProperties": false
     }

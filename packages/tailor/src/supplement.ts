@@ -10,6 +10,8 @@ import { sentencesOf, userSentenceFor } from './user-sentence.ts';
 import type { RolePatterns } from './patterns.ts';
 import type { ChatCallContext, ChatTurn } from './provider.ts';
 import type { FactLike } from './types.ts';
+import { mockSuggestions } from './suggest.ts';
+import type { SuggestInput } from './suggest.ts';
 
 // 기본 이력서 보완 대화(DECISIONS S1-16·S1-17). 에이전트는 확정 경력을 점검해 질문하고, 사용자가 답한 문장만 경력 후보로 돌려준다.
 // - 후보(candidates)는 사용자 메시지 안의 문장이어야 한다(AI 문장을 사실로 재수집하지 않는다, S4-05와 같은 규칙).
@@ -38,6 +40,8 @@ export type SupplementProvider = {
   respond(input: SupplementInput): Promise<unknown>;
   review(input: SupplementReviewInput): Promise<unknown>;
   critic(input: SupplementCriticInput): Promise<unknown>;
+  // 점검 항목별 추천 문장(S1-24). 사용자가 '문장 추천받기'를 누를 때만 부른다.
+  suggest?(input: SuggestInput): Promise<unknown>;
 };
 
 export const SUPPLEMENT_LIMITS = { reply: 2000, candidates: 10, drafts: 5, questions: 8, statement: 1000, note: 300, question: 400, reason: 300 } as const;
@@ -178,7 +182,8 @@ function formal(sentence: string): string {
 // mock 근거 검토: 근거(확정 경력·답변)에 없는 숫자·영문 기술명·범위 표현이 있으면 뺀다(규칙 기반 합성 판정).
 const CRITIC_TOKENS = /\d+(?:\.\d+)?|[A-Za-z][A-Za-z0-9.+#-]*|리드|리딩|총괄|주도|이끌|책임|팀장/g;
 function mockVerdict(draft: CriticDraft, sources: string): { index: number; verdict: 'keep' | 'drop'; reason: string } {
-  const missing = [...new Set(draft.text.match(CRITIC_TOKENS) ?? [])].filter(token => !sources.includes(token));
+  // [빈칸]은 사용자가 채울 자리라 근거 위반이 아니다(S1-24 추천 문장).
+  const missing = [...new Set(draft.text.replace(/\[[^\]\n]*\]/g, ' ').match(CRITIC_TOKENS) ?? [])].filter(token => !sources.includes(token));
   return missing.length > 0
     ? { index: draft.index, verdict: 'drop', reason: `근거에 없는 표현이 있어요: ${missing.join(', ')}` }
     : { index: draft.index, verdict: 'keep', reason: '답변·확정 경력에 있는 내용만 썼어요.' };
@@ -227,6 +232,9 @@ export function createMockSupplementProvider(): SupplementProvider {
     async critic(input) {
       const sources = [...input.facts.map(fact => fact.statement), ...input.userMessages.map(message => message.content)].join('\n');
       return { verdicts: input.drafts.map(draft => mockVerdict(draft, sources)) };
+    },
+    async suggest(input) {
+      return mockSuggestions(input);
     },
   };
 }

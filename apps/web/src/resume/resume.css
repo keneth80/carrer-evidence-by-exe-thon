@@ -145,3 +145,19 @@ mark{background:#ffe8a3;color:inherit;border-radius:3px;padding:0 1px}
 .tag.done{background:#e3f4ea;color:#1f6b3d;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:700}
 .supp-target del{color:#8a9aa0}
 .supp-target ins{text-decoration:none;color:#1f6b3d;font-weight:600}
+
+/* 점검 항목별 추천 문장 고르기(S1-24). 빈칸은 문장 안 입력칸으로 채운다. */
+.suggest-cta{margin-top:6px}
+.suggest-box{margin-top:8px;padding:12px;border:1px solid #c8dcda;border-radius:10px;background:#fbfdfd;display:grid;gap:8px}
+.suggest-options{display:grid;gap:6px}
+.suggest-option{display:grid;grid-template-columns:auto auto 1fr;gap:8px;align-items:start;padding:8px 10px;border:1px solid #dce6e7;border-radius:8px;cursor:pointer;font-size:13px;line-height:1.6}
+.suggest-option.on{border-color:#2b5f66;background:#eef6f5}
+.suggest-option input[type=radio]{margin-top:4px}
+.suggest-text{white-space:pre-wrap;min-width:0}
+.blank-input{border:none;border-bottom:2px solid #e0b100;background:#fff7d6;border-radius:4px 4px 0 0;padding:1px 4px;margin:0 2px;font:inherit;max-width:100%}
+.blank-input:focus{outline:2px solid #2b5f66;outline-offset:1px}
+.suggest-own{display:grid;gap:6px;min-width:0}
+.suggest-own textarea{width:100%;min-height:64px;border:1px solid #c8d9d8;border-radius:7px;padding:8px;font:inherit;box-sizing:border-box}
+.suggest-target{display:grid;gap:4px;font-size:13px}
+.suggest-target select{max-width:100%}
+@media (max-width:640px){.suggest-option{grid-template-columns:auto 1fr}.suggest-option .tag{grid-column:2}.suggest-text,.suggest-own{grid-column:1 / -1}}

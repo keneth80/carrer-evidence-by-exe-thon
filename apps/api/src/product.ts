@@ -7,7 +7,7 @@ import { createPastedText, readOriginal, uploadPdf } from './resume/intake.ts';
 import { confirmFacts, getExtractionDraft, getProductTask, getResumeDocument, getResumeFactRevision, getSourceText, listResumeDocuments } from './resume/review.ts';
 import type { ObjectStore } from './resume/storage.ts';
 import { createResumeAiReview, getResumeAiReview } from './resume/ai-review.ts';
-import { createSupplementSession, getSupplementSession, postSupplementMessage } from './resume/supplement.ts';
+import { createSupplementSession, getSupplementSession, postSupplementMessage, postSupplementStatement, postSupplementSuggestion } from './resume/supplement.ts';
 import { createTailoringSession, getTailoringSession, listSessionTasks, listTailoringMessages, postTailoringMessage, requestJdCheck, restoreResumeRevision, retryTailoringMessage } from './tailor/sessions.ts';
 import { acceptEditProposal, listEditProposals, rejectEditProposal } from './tailor/proposals.ts';
 import { createArtifact, finalizeResumeRevision, getArtifactContent, getArtifactMeta, getResumeRevision, listRevisionArtifacts, listSessionRevisions } from './tailor/revisions.ts';
@@ -46,6 +46,8 @@ const routes: Route[] = [
   { method: 'POST', pattern: new RegExp(`^/api/v1/resume-fact-revisions/${ID}/supplement-sessions$`), write: true, handle: (deps, request, principal, id) => createSupplementSession(deps, request, principal, id) },
   { method: 'GET', pattern: new RegExp(`^/api/v1/resume-supplement-sessions/${ID}$`), write: false, handle: (deps, request, principal, id) => getSupplementSession(deps, request, principal, id) },
   { method: 'POST', pattern: new RegExp(`^/api/v1/resume-supplement-sessions/${ID}/messages$`), write: true, handle: (deps, request, principal, id) => postSupplementMessage(deps, request, principal, id) },
+  { method: 'POST', pattern: new RegExp(`^/api/v1/resume-supplement-sessions/${ID}/suggestions$`), write: true, handle: (deps, request, principal, id) => postSupplementSuggestion(deps, request, principal, id) },
+  { method: 'POST', pattern: new RegExp(`^/api/v1/resume-supplement-sessions/${ID}/statements$`), write: true, handle: (deps, request, principal, id) => postSupplementStatement(deps, request, principal, id) },
   { method: 'GET', pattern: new RegExp(`^/api/v1/product-tasks/${ID}$`), write: false, handle: (deps, request, principal, id) => getProductTask(deps, request, principal, id) },
   { method: 'POST', pattern: new RegExp(`^/api/v1/product-tasks/${ID}/cancel$`), write: true, handle: (deps, request, principal, id) => cancelProductTask(deps, request, principal, id) },
   { method: 'POST', pattern: /^\/api\/v1\/search-intents$/, write: true, handle: (deps, request, principal) => createSearchIntent(deps, request, principal) },

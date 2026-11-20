@@ -21,6 +21,12 @@ export function factChange(id: string, start: FactText[] | null, head: FactText[
   return { text: before.statement, changed: true, replacedBy: sameSlot && !startIds.has(sameSlot.id) ? sameSlot.statement : null };
 }
 
+// 중복 정리(사용자 테스트 2026-11-20): '두 번 나와요'처럼 같은 내용이 반복된 항목은 새 문장보다 하나만 남기는 것이 맞다.
+const DUPLICATE = /두\s*번|여러\s*번|중복|반복|같은\s*내용|겹쳐/;
+export function isDuplicateFinding(item: { title: string; fact_ids: string[] }): boolean {
+  return item.fact_ids.length >= 2 && DUPLICATE.test(item.title);
+}
+
 export function findingProgress(factIds: string[], start: FactText[] | null, head: FactText[]): FindingProgress {
   const states = factIds.map(id => factChange(id, start, head)).filter((state): state is FactChange => state !== null);
   const changed = states.filter(state => state.changed).length;

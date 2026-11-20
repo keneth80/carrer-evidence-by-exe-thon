@@ -27,11 +27,19 @@ function styleOf(category: string, group: Group): DocxStyle {
   return category === 'role' || category === 'period' ? 'Role' : 'Bullet';
 }
 
+// 회사 구간(다음 회사 전까지)의 첫 기간. 실제 이력서는 회사 → 직함 → 기간 순서인 경우가 많다(사용자 테스트 2026-11-20).
+function firstPeriodIn(facts: FactText[], employerAt: number): number {
+  for (let at = employerAt + 1; at < facts.length && facts[at].category !== 'employer'; at++) if (facts[at].category === 'period') return at;
+  return -1;
+}
+
 export function resumeDocxLines(facts: FactText[]): DocxLine[] {
   const lines: DocxLine[] = [...PLACEHOLDERS];
   const used = new Set<Group>();
+  const consumed = new Set<number>();
   let current: Group | null = null;
   for (let index = 0; index < facts.length; index++) {
+    if (consumed.has(index)) continue;
     const fact = facts[index];
     const group = groupOf(fact.category, current);
     if (group !== current && !used.has(group)) { lines.push({ style: 'Heading1', text: group }); used.add(group); }
@@ -44,9 +52,9 @@ export function resumeDocxLines(facts: FactText[]): DocxLine[] {
       continue;
     }
     if (fact.category === 'employer') {
-      const next = facts[index + 1];
-      const period = next?.category === 'period' ? ` · ${facts[++index].statement}` : '';
-      lines.push({ style: 'Heading2', text: `${fact.statement}${period}` });
+      const at = firstPeriodIn(facts, index);
+      if (at >= 0) consumed.add(at);
+      lines.push({ style: 'Heading2', text: at >= 0 ? `${fact.statement} · ${facts[at].statement}` : fact.statement });
       continue;
     }
     lines.push({ style: styleOf(fact.category, group), text: fact.statement });

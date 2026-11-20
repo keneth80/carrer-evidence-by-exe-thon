@@ -1,9 +1,12 @@
 import type { ResumeFact } from '../../../../packages/resume/src/types.ts';
-import type { SupplementCandidate, SupplementTurn } from './api.ts';
+import type { SuggestionSet, SupplementCandidate, SupplementTurn } from './api.ts';
 import { ExampleBox } from './ExampleBox.tsx';
+import { SuggestionPicker } from './SuggestionPicker.tsx';
+import type { AdoptAction } from './SuggestionPicker.tsx';
 import { categoryLabel } from './FactEditor.tsx';
 import { stageSummary } from './progress.ts';
-import { findingProgress } from './finding-state.ts';
+import { findingProgress, isDuplicateFinding } from './finding-state.ts';
+import { DedupeBox } from './DedupeBox.tsx';
 import type { FactChange } from './finding-state.ts';
 
 // 보완 대화의 에이전트 한 턴. 점검 항목·질문은 안내, 후보는 사용자 문장(추가하면 확정 경력), 초안은 사실이 아닌 문장 제안이다.
@@ -12,6 +15,11 @@ type Props = {
   turn: SupplementTurn; busy: boolean; isAdded: (candidate: SupplementCandidate) => boolean;
   // 점검 당시 문장과 지금 문장(바뀌었으면). startFacts=null이면 시작 버전을 아직 못 불러온 것이다.
   factState: (id: string) => FactChange | null; startFacts: ResumeFact[] | null; headFacts: ResumeFact[];
+  // 점검 항목별 추천 문장(S1-24). suggestionFor는 이 항목의 가장 최근 추천 응답, suggesting은 지금 만드는 중인 항목 순번.
+  suggestionFor?: (index: number) => { set: SuggestionSet; reply: string } | null; suggesting?: number | null; canSuggest?: boolean;
+  onSuggest?: (index: number) => void; onAdopt?: (index: number, action: AdoptAction) => void;
+  // 중복 정리: 남길 문장 하나만 두고 나머지를 뺀다(모델 없음).
+  onRemove?: (removeIds: string[]) => void;
   targetFor: (candidate: SupplementCandidate) => ResumeFact | null;
   // example이 있으면 '이 예시로 답하기'(입력창에 예시를 넣음), 없으면 질문만 붙인다.
   onAnswer: (question: string, example?: string) => void; onAdd: (candidate: SupplementCandidate) => void; onReplace: (candidate: SupplementCandidate, targetId: string) => void; onAdoptDraft: (text: string) => void;
@@ -33,13 +41,16 @@ function PipelineNote({ turn }: { turn: SupplementTurn }) {
 
 const PROGRESS_LABEL = { done: '반영함', partial: '일부 반영', open: null } as const;
 
-export function SupplementTurnView({ turn, busy, isAdded, factState, startFacts, headFacts, targetFor, onAnswer, onAdd, onReplace, onAdoptDraft }: Props) {
+export function SupplementTurnView({ turn, busy, isAdded, factState, startFacts, headFacts, targetFor, onAnswer, onAdd, onReplace, onAdoptDraft, suggestionFor, suggesting = null, canSuggest = false, onSuggest, onAdopt, onRemove }: Props) {
   return <div className="supp-turn">
     <p>{turn.reply}</p>
     <PipelineNote turn={turn} />
     {turn.findings.length > 0 && <ul className="supp-findings">
       {turn.findings.map((item, index) => {
-        const progress = PROGRESS_LABEL[findingProgress(item.fact_ids, startFacts, headFacts)];
+        const remaining = item.fact_ids.filter(id => headFacts.some(fact => fact.id === id));
+        // 중복 항목은 하나만 남으면(나머지를 뺐으면) 반영한 것이다.
+        const deduped = isDuplicateFinding(item) && remaining.length === 1 && startFacts !== null;
+        const progress = deduped ? PROGRESS_LABEL.done : PROGRESS_LABEL[findingProgress(item.fact_ids, startFacts, headFacts)];
         const targets = item.fact_ids.map(id => factState(id)).filter((state): state is FactChange => state !== null);
         return <li key={index} className={progress ? 'resolved' : undefined}>
         {progress && <span className="tag done">{progress}</span>} <strong>{item.title}</strong> <span className="muted">{item.detail}</span>
@@ -48,6 +59,16 @@ export function SupplementTurnView({ turn, busy, isAdded, factState, startFacts,
         </span>)}</div>}
         {item.question && <div className="supp-question">질문: {item.question} <button type="button" className="ghost" onClick={() => onAnswer(item.question!)}>이 질문에 답하기</button></div>}
         {item.example && <ExampleBox text={item.example} onUse={() => onAnswer(item.question ?? item.title, item.example!)} />}
+        {(() => {
+          const picked = suggestionFor?.(index) ?? null;
+          // 지금 경력에 남아 있는 대상 문장만 바꿀 수 있다(이미 바꾼 문장은 '반영함').
+          const ids = picked?.set.target_fact_ids ?? item.fact_ids;
+          const targets = ids.map(id => headFacts.find(fact => fact.id === id)).filter((fact): fact is ResumeFact => Boolean(fact));
+          if (isDuplicateFinding(item) && targets.length >= 2 && onRemove) return <DedupeBox facts={targets} busy={busy} onKeep={(_keep, removeIds) => onRemove(removeIds)} />;
+          if (suggesting === index) return <p className="status-line" role="status">추천 문장을 만드는 중이에요(추천 문장 작성 → 근거 검토)…</p>;
+          if (picked) return <SuggestionPicker key={picked.set.options.map(option => option.text).join('|')} set={picked.set} reply={picked.reply} targets={targets} busy={busy} onAdopt={action => onAdopt?.(index, action)} />;
+          return canSuggest && !progress && onSuggest ? <button type="button" className="outline small suggest-cta" disabled={busy} onClick={() => onSuggest(index)}>문장 추천받기</button> : null;
+        })()}
       </li>;
       })}
     </ul>}

@@ -4,6 +4,9 @@ import type { ChatTurn } from '../../../packages/tailor/src/provider.ts';
 import { runSupplementPipeline } from '../../../packages/tailor/src/supplement-pipeline.ts';
 import type { PipelineMode, TurnProgress } from '../../../packages/tailor/src/supplement-pipeline.ts';
 import type { SupplementProvider, SupplementTurn, UserMessage } from '../../../packages/tailor/src/supplement.ts';
+import { runSuggestPipeline } from '../../../packages/tailor/src/suggest.ts';
+import type { SuggestionSet } from '../../../packages/tailor/src/suggest.ts';
+import type { ReviewItem } from '../../../packages/tailor/src/review-provider.ts';
 import type { FactLike } from '../../../packages/tailor/src/types.ts';
 import { claimTask, completeTask, earlierTransmission, holdsLease, inTransaction, markDispatched, MAX_ATTEMPTS, withHeartbeat } from './lease.ts';
 import type { LeaseDeps, LeasedTask, Transmission } from './lease.ts';
@@ -15,7 +18,8 @@ import type { LeaseDeps, LeasedTask, Transmission } from './lease.ts';
 // pipeline: staged(기본, 단계별 호출) | single(비교용 한 번 호출, SUPPLEMENT_PIPELINE=single).
 export type SupplementWorkerDeps = LeaseDeps & { provider: SupplementProvider; pipeline?: PipelineMode };
 export type SupplementRunResult = 'idle' | 'succeeded' | 'failed' | 'lease_lost';
-type Input = { session_id: string; message_id: string | null; chat_provider_mode?: string };
+// suggest: 점검 항목별 추천 문장 요청(S1-24). 그 점검 결과가 담긴 assistant 메시지와 항목 순번.
+type Input = { session_id: string; message_id: string | null; chat_provider_mode?: string; suggest?: { message_id: string; finding_index: number } };
 type Context = { facts: FactLike[]; userMessages: UserMessage[]; history: ChatTurn[]; message: string | null };
 
 const newId = (prefix: string) => `${prefix}_${randomUUID().replaceAll('-', '')}`;
@@ -42,7 +46,8 @@ function loadContext(deps: SupplementWorkerDeps, task: LeasedTask, input: Input)
   };
 }
 
-function finish(deps: SupplementWorkerDeps, task: LeasedTask, sessionId: string, outcome: { ok: true; turn: SupplementTurn } | { ok: false; code: string }, transmission: Transmission): SupplementRunResult {
+type TurnResult = SupplementTurn & { suggestion?: SuggestionSet };
+function finish(deps: SupplementWorkerDeps, task: LeasedTask, sessionId: string, outcome: { ok: true; turn: TurnResult } | { ok: false; code: string }, transmission: Transmission): SupplementRunResult {
   return inTransaction(deps.db, () => {
     if (!holdsLease(deps, task)) return 'lease_lost';
     const now = deps.now();
@@ -54,7 +59,7 @@ function finish(deps: SupplementWorkerDeps, task: LeasedTask, sessionId: string,
     deps.db.prepare("INSERT INTO ce8_supplement_messages (id, workspace_id, session_id, role, content, result_json, task_id, created_at_ms) VALUES (?, ?, ?, 'assistant', ?, ?, ?, ?)")
       .run(messageId, task.workspaceId, sessionId, outcome.turn.reply, JSON.stringify(outcome.turn), task.taskId, now);
     deps.db.prepare('UPDATE ce8_supplement_sessions SET updated_at_ms = ? WHERE workspace_id = ? AND id = ?').run(now, task.workspaceId, sessionId);
-    completeTask(deps, task, 'succeeded', null, { assistant_message_id: messageId, candidates: outcome.turn.candidates.length }, transmission);
+    completeTask(deps, task, 'succeeded', null, { assistant_message_id: messageId, candidates: outcome.turn.candidates.length, ...(outcome.turn.suggestion ? { suggestions: outcome.turn.suggestion.options.length } : {}) }, transmission);
     return 'succeeded';
   });
 }
@@ -69,10 +74,42 @@ function saveProgress(deps: SupplementWorkerDeps, task: LeasedTask, sessionId: s
   });
 }
 
+// 추천 문장 대상: 같은 세션의 assistant 메시지에 저장된 점검 항목. 없으면 작업 실패(입력 검증은 API가 먼저 한다).
+function findingOf(deps: SupplementWorkerDeps, task: LeasedTask, sessionId: string, ref: { message_id: string; finding_index: number }): ReviewItem | null {
+  const row = deps.db.prepare("SELECT result_json FROM ce8_supplement_messages WHERE workspace_id = ? AND session_id = ? AND id = ? AND role = 'assistant'").get(task.workspaceId, sessionId, ref.message_id);
+  if (!row?.result_json) return null;
+  const finding = (JSON.parse(String(row.result_json)) as SupplementTurn).findings?.[ref.finding_index];
+  return finding ?? null;
+}
+
+async function runSuggest(deps: SupplementWorkerDeps, task: LeasedTask, input: Input & { suggest: NonNullable<Input['suggest']> }, context: Context, fail: (code: string, transmission?: Transmission) => SupplementRunResult): Promise<SupplementRunResult> {
+  const provider = deps.provider;
+  if (!provider.suggest) return fail('SUGGEST_NOT_SUPPORTED');
+  const found = findingOf(deps, task, input.session_id, input.suggest);
+  if (!found) return fail('SUGGEST_FINDING_NOT_FOUND');
+  // 대상 문장은 지금 경력에 남아 있는 첫 문장 하나다(실호출 관찰: 여러 회사 문장을 함께 주면 후보가 경력을 섞었다).
+  const primary = found.fact_ids.find(id => context.facts.some(fact => fact.id === id));
+  const finding = { ...found, fact_ids: primary ? [primary] : [] };
+  if (!markDispatched(deps, task)) return holdsLease(deps, task) ? fail('CANCELED_BY_USER') : 'lease_lost';
+  const patterns = patternsFor(context.facts.filter(fact => fact.category === 'role').map(fact => fact.statement));
+  const result = await runSuggestPipeline({
+    provider: { mode: provider.mode, suggest: work => provider.suggest!(work), critic: work => provider.critic(work) }, taskId: task.taskId, now: deps.now,
+    report: progress => saveProgress(deps, task, input.session_id, progress as unknown as TurnProgress),
+    invoke: work => withHeartbeat(deps, task, work),
+    call: { workspaceId: task.workspaceId, taskId: task.taskId, leaseGeneration: task.generation },
+  }, { facts: context.facts, finding, patterns, userMessages: context.userMessages, sourceMessageId: input.suggest.message_id, findingIndex: input.suggest.finding_index });
+  if (result.kind === 'lease_lost') return 'lease_lost';
+  const transmission = result.transmission === 'not_dispatched' ? earlierTransmission(task) : result.transmission;
+  if (result.kind === 'failed') return fail(result.code, transmission);
+  const turn: TurnResult = { reply: result.reply, findings: [], candidates: [], drafts: [], questions: [], pipeline: result.pipeline, suggestion: result.set };
+  return finish(deps, task, input.session_id, { ok: true, turn }, transmission);
+}
+
 function parseInput(json: string): Input | null {
   try {
     const input = JSON.parse(json) as Input;
-    return typeof input.session_id === 'string' && input.session_id && (input.message_id === null || typeof input.message_id === 'string') ? input : null;
+    const suggestOk = input.suggest === undefined || (typeof input.suggest?.message_id === 'string' && Number.isInteger(input.suggest.finding_index) && input.suggest.finding_index >= 0);
+    return typeof input.session_id === 'string' && input.session_id && (input.message_id === null || typeof input.message_id === 'string') && suggestOk ? input : null;
   } catch { return null; }
 }
 
@@ -87,6 +124,7 @@ export async function runSupplementTask(deps: SupplementWorkerDeps, taskId?: str
   if (task.generation > MAX_ATTEMPTS) return fail('SUPPLEMENT_ATTEMPTS_EXCEEDED');
   const context = loadContext(deps, task, input);
   if (typeof context === 'string') return fail(context);
+  if (input.suggest) return await runSuggest(deps, task, { ...input, suggest: input.suggest }, context, fail);
   if (!markDispatched(deps, task)) return holdsLease(deps, task) ? fail('CANCELED_BY_USER') : 'lease_lost';
 
   const patterns = patternsFor(context.facts.filter(fact => fact.category === 'role').map(fact => fact.statement));

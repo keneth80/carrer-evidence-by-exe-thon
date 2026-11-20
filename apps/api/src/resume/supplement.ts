@@ -6,6 +6,7 @@ import type { Config } from '../config.ts';
 import { idempotentWrite, readIdempotencyKey } from '../idempotency.ts';
 import { getDocument, getFactRevision, getTask, taskBody } from './repository.ts';
 import type { TaskRow } from './repository.ts';
+import { hasBlank } from '../../../../packages/tailor/src/example.ts';
 
 // 기본 이력서 보완 대화(DECISIONS S1-16). 세션은 문서의 현재 확정 경력 버전에서만 시작하고, 각 턴은 supplement_resume 작업이다.
 // API는 모델을 호출하지 않는다. 대화는 경력 사실이 아니며, 사용자 메시지만 기존 확정 API(POST fact-revisions)의 user_statement 근거가 된다.
@@ -32,9 +33,9 @@ function hasPending(db: DatabaseSync, workspaceId: string, sessionId: string): b
   return Boolean(db.prepare("SELECT 1 FROM ce7_tasks WHERE workspace_id = ? AND kind = 'supplement_resume' AND state IN ('queued','running') AND json_extract(input_json, '$.session_id') = ? LIMIT 1").get(workspaceId, sessionId));
 }
 
-function enqueueTurn(deps: SupplementDeps, workspaceId: string, sessionId: string, messageId: string | null, now: number): TaskRow | undefined {
+function enqueueTurn(deps: SupplementDeps, workspaceId: string, sessionId: string, messageId: string | null, now: number, suggest?: { message_id: string; finding_index: number }): TaskRow | undefined {
   const taskId = newId('task');
-  const inputJson = JSON.stringify({ session_id: sessionId, message_id: messageId, chat_provider_mode: deps.config.chatMode });
+  const inputJson = JSON.stringify({ session_id: sessionId, message_id: messageId, chat_provider_mode: deps.config.chatMode, ...(suggest ? { suggest } : {}) });
   deps.db.prepare(`INSERT INTO ce7_tasks (id, workspace_id, kind, state, input_json, input_hash, result_json, error_code, cancel_requested, provider_transmission, lease_owner, lease_generation, lease_until_ms, available_at_ms, created_at_ms, updated_at_ms)
     VALUES (?, ?, 'supplement_resume', 'queued', ?, ?, NULL, NULL, 0, 'not_dispatched', NULL, 0, NULL, ?, ?, ?)`).run(taskId, workspaceId, inputJson, sha256Hex(inputJson), now, now, now);
   return getTask(deps.db, workspaceId, taskId);
@@ -109,5 +110,56 @@ export function postSupplementMessage(deps: SupplementDeps, request: ProductRequ
     db.prepare('UPDATE ce8_supplement_sessions SET updated_at_ms = ? WHERE workspace_id = ? AND id = ?').run(now, principal.workspaceId, sessionId);
     const task = enqueueTurn(deps, principal.workspaceId, sessionId, messageId, now);
     return { status: 202, body: { task: task ? taskBody(task) : null, resource_id: messageId } };
+  });
+}
+
+// 점검 항목별 추천 문장 요청(S1-24). 같은 세션 assistant 메시지의 점검 항목만 대상이다. 응답은 supplement_resume 작업(추천 작성 → 근거 검토)이다.
+export function postSupplementSuggestion(deps: SupplementDeps, request: ProductRequest, principal: Principal, sessionId: string): Reply {
+  const key = readIdempotencyKey(request);
+  if ('reply' in key) return key.reply;
+  const parsed = readJson(request, deps.config.limits.jsonBodyBytes);
+  if (!parsed.ok) return parsed.reply;
+  const body = parsed.value;
+  if (!isPlainObject(body) || Object.keys(body).sort().join() !== 'finding_index,message_id' || typeof body.message_id !== 'string' || !Number.isInteger(body.finding_index) || (body.finding_index as number) < 0) {
+    return problem(request, 400, 'REQUEST_INVALID', '요청 본문에는 message_id와 finding_index(0 이상 정수)만 있어야 합니다.');
+  }
+  const { db } = deps;
+  if (!getSession(db, principal.workspaceId, sessionId)) return sessionNotFound(request);
+  const ref = { message_id: body.message_id, finding_index: body.finding_index as number };
+  const row = db.prepare("SELECT result_json FROM ce8_supplement_messages WHERE workspace_id = ? AND session_id = ? AND id = ? AND role = 'assistant'").get(principal.workspaceId, sessionId, ref.message_id) as { result_json: string | null } | undefined;
+  const findings = row?.result_json ? (JSON.parse(row.result_json) as { findings?: unknown[] }).findings ?? [] : [];
+  if (!findings[ref.finding_index]) return problem(request, 404, 'SUPPLEMENT_FINDING_NOT_FOUND', '점검 항목을 찾을 수 없습니다.');
+  const requestHash = sha256Hex(JSON.stringify([request.method, request.url.pathname, ref.message_id, ref.finding_index]));
+  return idempotentWrite(db, request, principal.workspaceId, 'post_supplement_suggestion', key.key, requestHash, () => {
+    if (getSession(db, principal.workspaceId, sessionId)?.state === 'closed') return problem(request, 409, 'SUPPLEMENT_SESSION_CLOSED', '닫힌 보완 대화입니다.');
+    if (hasPending(db, principal.workspaceId, sessionId)) return problem(request, 409, 'RESPONSE_PENDING', '이전 응답을 만드는 중입니다. 잠시 후 눌러 주세요.');
+    const now = request.nowMs;
+    const task = enqueueTurn(deps, principal.workspaceId, sessionId, null, now, ref);
+    return { status: 202, body: { task: task ? taskBody(task) : null, resource_id: sessionId } };
+  });
+}
+
+// 고른 추천 문장(또는 직접 쓴 문장)을 내 진술로 기록한다(S1-24). 모델을 부르지 않는다. 이 메시지가 확정 요청의 user_statement 근거가 된다.
+// [빈칸]이 남은 문장은 아직 사실이 아니라 받지 않는다.
+export function postSupplementStatement(deps: SupplementDeps, request: ProductRequest, principal: Principal, sessionId: string): Reply {
+  const key = readIdempotencyKey(request);
+  if ('reply' in key) return key.reply;
+  const parsed = readJson(request, deps.config.limits.jsonBodyBytes);
+  if (!parsed.ok) return parsed.reply;
+  if (!isPlainObject(parsed.value) || Object.keys(parsed.value).join() !== 'content') return problem(request, 400, 'REQUEST_INVALID', '요청 본문에는 content만 있어야 합니다.');
+  const { content } = parsed.value;
+  if (typeof content !== 'string' || !content.trim() || content.length > SUPPLEMENT_MESSAGE_LIMIT) return problem(request, 400, 'MESSAGE_INVALID', `문장은 1~${SUPPLEMENT_MESSAGE_LIMIT}자입니다.`);
+  if (hasBlank(content)) return problem(request, 400, 'STATEMENT_HAS_BLANK', '빈칸 [ ]을 채우거나 지운 뒤 반영해 주세요.');
+  const { db } = deps;
+  if (!getSession(db, principal.workspaceId, sessionId)) return sessionNotFound(request);
+  const requestHash = sha256Hex(JSON.stringify([request.method, request.url.pathname, content.trim()]));
+  return idempotentWrite(db, request, principal.workspaceId, 'post_supplement_statement', key.key, requestHash, () => {
+    if (getSession(db, principal.workspaceId, sessionId)?.state === 'closed') return problem(request, 409, 'SUPPLEMENT_SESSION_CLOSED', '닫힌 보완 대화입니다.');
+    const now = request.nowMs;
+    const messageId = newId('smsg');
+    db.prepare("INSERT INTO ce8_supplement_messages (id, workspace_id, session_id, role, content, result_json, task_id, created_at_ms) VALUES (?, ?, ?, 'user', ?, NULL, NULL, ?)")
+      .run(messageId, principal.workspaceId, sessionId, content.trim(), now);
+    db.prepare('UPDATE ce8_supplement_sessions SET updated_at_ms = ? WHERE workspace_id = ? AND id = ?').run(now, principal.workspaceId, sessionId);
+    return { status: 201, body: { id: messageId, role: 'user', content: content.trim(), turn: null, created_at: iso(now) } };
   });
 }

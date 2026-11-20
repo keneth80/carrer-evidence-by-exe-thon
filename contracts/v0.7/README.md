@@ -2,6 +2,8 @@
 
 작성·검증 기준일: **2026-11-16, Asia/Seoul**. 상태: **설계 계약과 격리 검증 자료**. API handler, worker, PDF 렌더러, 브라우저 지원 서비스가 완성됐다는 뜻이 아니다.
 
+**2026-11-20 점검 항목별 추천 문장(v0.7.8):** `POST /api/v1/resume-supplement-sessions/{id}/suggestions`(점검 항목 하나의 추천 문장 작업: 작성 → 근거 검토, 결과는 assistant `turn.suggestion`), `POST /api/v1/resume-supplement-sessions/{id}/statements`(고른·직접 쓴 문장을 모델 없이 내 진술로 기록, 빈칸이 남으면 400). 새 스키마 `ResumeSupplementSuggestion`·요청 2종, `ResumeSupplementTurn.suggestion`(선택). DB 변경 없음(DECISIONS S1-24).
+
 **2026-11-20 점검 항목 작성 예시(v0.7.7):** `ResumeAiReviewItem`·`TailoringJdFinding`에 선택 필드 `example`(작성 예시, 최대 300자, 없으면 null)을 추가했다. 사실이 아닌 문장 틀이며 확정 경력에 없는 수치·기술·범위는 `[빈칸]`으로 남긴다. 서버가 빈칸 밖 표현을 확정 경력과 대조해 맞지 않으면 null로 바꾸고, 빈칸이 남은 사용자 문장은 경력 후보로 만들지 않는다. 경로·DB 변경 없음(DECISIONS S1-22).
 
 **2026-11-19 공고(JD) 맞춤 점검·수정 단계별 처리 반영(v0.7.6):** migration `013_tailoring_progress.sql`로 `ce7_tailoring_sessions.progress_json`·`ce7_messages.result_json` 열 추가(표 재생성 없음). 경로 `requestJdCheck`(`POST /api/v1/tailoring-sessions/{session_id}/jd-checks`), schema `JdCheckCreate`·`TailoringProgress`·`TailoringProgressStage`·`TailoringStage`·`TailoringPipeline`·`TailoringTurn`·`TailoringRequirementCheck`·`TailoringJdFinding` 추가, `TailoringSession.progress`·`TailoringMessage.turn`(선택 필드) 추가. 요구사항 대조 → AI 점검 / 수정안 작성 → 근거 검토(DECISIONS S1-18).

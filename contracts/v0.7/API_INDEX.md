@@ -26,6 +26,8 @@
 | 01 이력서·검색 | `POST /api/v1/resume-fact-revisions/{revision_id}/supplement-sessions` | 기본 이력서 보완 대화 시작(v0.7.4, 구현: mock·Liner) |
 | 01 이력서·검색 | `GET /api/v1/resume-supplement-sessions/{session_id}` | 보완 대화·에이전트 턴 조회(v0.7.4, 구현) · 단계별 진행 기록 `progress`·턴 요약 `pipeline`(v0.7.5, 구현) |
 | 01 이력서·검색 | `POST /api/v1/resume-supplement-sessions/{session_id}/messages` | 보완 대화에 답하기(v0.7.4, 구현) |
+| 01 이력서·검색 | `POST /api/v1/resume-supplement-sessions/{session_id}/suggestions` | 점검 항목별 추천 문장 작업(작성 → 근거 검토, v0.7.8, 구현) |
+| 01 이력서·검색 | `POST /api/v1/resume-supplement-sessions/{session_id}/statements` | 고른·직접 쓴 문장을 내 진술로 기록(모델 없음, v0.7.8, 구현) |
 | 01 이력서·검색 | `GET /api/v1/resume-documents` | 내 원본 목록·확정 경력 head (S01 추가) |
 | 01 이력서·검색 | `GET /api/v1/resume-documents/{document_id}/source-text` | 근거 위치 기준 원문 텍스트 (S01 추가) |
 | 01 이력서·검색 | `GET /api/v1/resume-documents/{document_id}/original` | 원본 파일 bytes 재열람 (S01 추가) |

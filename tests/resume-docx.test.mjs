@@ -68,6 +68,18 @@ test('같은 입력이면 같은 bytes(날짜 고정), 제어 문자는 빼고 �
   assert.match(empty.value, /\[이름\]/);
 });
 
+test('회사 바로 뒤가 아니어도 같은 회사 구간의 첫 기간을 회사 제목에 붙인다(실제 이력서: 회사 → 직함 → 기간 순서)', () => {
+  const lines = resumeDocxLines([
+    fact('e1', 'employer', '예시회사'), fact('r1', 'role', '플랫폼팀 | 프론트엔드 개발'), fact('p1', 'period', '2020.01 ~ 2022.12'),
+    fact('d1', 'responsibility', '정산 화면을 개발했습니다.'), fact('p2', 'period', '2023.01 ~ 재직 중'),
+    fact('e2', 'employer', '예시상사'), fact('d2', 'responsibility', '주문 화면을 개발했습니다.'), fact('p3', 'period', '2018.01 ~ 2019.12'),
+  ]).map(line => `${line.style}:${line.text}`);
+  assert.deepEqual(lines.slice(2), [
+    'Heading1:경력', 'Heading2:예시회사 · 2020.01 ~ 2022.12', 'Role:플랫폼팀 | 프론트엔드 개발', 'Bullet:정산 화면을 개발했습니다.', 'Role:2023.01 ~ 재직 중',
+    'Heading2:예시상사 · 2018.01 ~ 2019.12', 'Bullet:주문 화면을 개발했습니다.',
+  ]);
+});
+
 test('파일 이름은 버전 번호를 붙인다', () => {
   assert.equal(DOCX_FILENAME(7), '기본이력서_v7.docx');
 });
