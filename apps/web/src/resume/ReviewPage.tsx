@@ -8,6 +8,7 @@ import { SourcePanel } from './SourcePanel.tsx';
 import type { Span } from './SourcePanel.tsx';
 import { WarningsPanel } from './WarningsPanel.tsx';
 import { FactBulkBar } from './FactBulkBar.tsx';
+import { ExtractionProgress } from './ExtractionProgress.tsx';
 import { addLines } from './bulk.ts';
 import { SupplementSection } from './SupplementSection.tsx';
 import { downloadResumeDocx } from './download-docx.ts';
@@ -121,7 +122,7 @@ export function ReviewPage({ documentId }: { documentId: string }) {
       <p>{document.input_kind === 'text_pdf' ? 'PDF' : document.input_kind === 'docx' ? 'Word(.docx)' : '붙여넣은 텍스트'} · 등록 {new Date(document.created_at).toLocaleString('ko-KR')} · <a href={`/api/v1/resume-documents/${document.id}/original`} target="_blank" rel="noreferrer">원본 열기</a></p>
     </section>
     {document.data_origin === 'synthetic' && <div className="notice"><strong>합성 예시</strong><span>저장소의 가상 이력서와 같은 파일입니다. 실제 인물·경력이 아닙니다.</span></div>}
-    {(status === 'uploaded' || status === 'extracting') && <p role="status" className="panel">내용을 읽고 있어요… 새로고침해도 같은 작업을 다시 확인합니다.</p>}
+    {(status === 'uploaded' || status === 'extracting') && <ExtractionProgress task={summary.latest_task} since={document.created_at} />}
     {/* 후보 0건은 읽기 실패가 아니다. 원문이 있으면 직접 골라 저장할 수 있으므로 오류 대신 안내로 보여준다. */}
     {status === 'failed' && document.error_code === 'NO_FACT_CANDIDATES' && source
       ? <div className="notice"><strong>자동 후보 0건</strong><span>원문은 읽었지만 경력 항목으로 자동 분류한 줄이 없습니다. 왼쪽 원문에서 줄마다 있는 ‘+ 추가’로 항목을 고른 뒤 저장하세요.</span></div>

@@ -4,9 +4,9 @@ import { extractDocxTextIsolated } from '../../../../packages/resume/src/docx.ts
 import { extractCandidates } from '../../../../packages/resume/src/candidates.ts';
 import { normalizePastedText } from '../../../../packages/resume/src/source.ts';
 import type { SourceText } from '../../../../packages/resume/src/source.ts';
-import { formatWarning } from '../../../../packages/resume/src/types.ts';
+import { formatWarning, parseWarning } from '../../../../packages/resume/src/types.ts';
 import type { ResumeFact } from '../../../../packages/resume/src/types.ts';
-import { applyStructure, structureLines } from '../../../../packages/resume/src/structure.ts';
+import { applyStructure, structureContext, structureLines } from '../../../../packages/resume/src/structure.ts';
 import type { StructureProvider } from '../../../../packages/resume/src/structure.ts';
 import { newId, sha256Hex } from '../http.ts';
 import { extractionSourceKey } from './repository.ts';
@@ -67,17 +67,37 @@ async function extract(document: DocumentRow, bytes: Buffer): Promise<Outcome> {
   return { status: 'review_required', facts: candidates.facts, warnings, errorCode: null, source };
 }
 
-// 분류 보정은 선택 단계다. 한도 초과·시간 초과·형식 오류는 추출 실패가 아니라 규칙 분류로 돌아간다.
+// 진행 표시(S1-31): 화면이 단계를 알 수 있게 유료 호출의 전송 상태를 작업에 남긴다. lease를 잃었으면 쓰지 않는다.
+function markTransmission(deps: ExtractionDeps, held: Claim, value: 'not_dispatched' | 'dispatched' | 'completed' | 'unknown') {
+  deps.db.prepare("UPDATE ce7_tasks SET provider_transmission = ?, updated_at_ms = ? WHERE id = ? AND state = 'running' AND lease_owner = ? AND lease_generation = ?")
+    .run(value, deps.now(), held.taskId, deps.owner, held.generation);
+}
+
+// 정리는 선택 단계다. 한도 초과·시간 초과·형식 오류는 추출 실패가 아니라 규칙 분류로 돌아간다.
 // 다시 집힌 작업(generation > 1)에서는 보내지 않는다(전송 여부가 불명확한 유료 호출을 자동 재시도하지 않는다).
 async function refine(deps: ExtractionDeps, held: Claim, outcome: Outcome): Promise<Outcome> {
   if (!deps.structure || outcome.status !== 'review_required' || held.generation !== 1) return outcome;
   try {
-    const output = await deps.structure.classify({ lines: structureLines(outcome.facts), call: { workspaceId: held.workspaceId, taskId: held.taskId, leaseGeneration: held.generation } });
-    const refined = applyStructure(outcome.facts, output);
-    console.log(`EXTRACTION_STRUCTURE lines=${outcome.facts.length} changed=${refined.changed} moved=${refined.moved}`);
-    return { ...outcome, facts: refined.facts };
+    // 원문 전체를 함께 보낸다(연락처·머리글 줄은 가림). 규칙이 분류하지 못한 줄도 모델이 살릴 수 있다.
+    const parsed = outcome.warnings.map(parseWarning);
+    const context = outcome.source ? structureContext(outcome.source, outcome.facts, parsed.flatMap(item => item ? [item] : [])) : undefined;
+    markTransmission(deps, held, 'dispatched');
+    const output = await deps.structure.classify({ lines: structureLines(outcome.facts), context, call: { workspaceId: held.workspaceId, taskId: held.taskId, leaseGeneration: held.generation } });
+    markTransmission(deps, held, 'completed');
+    const refined = applyStructure(outcome.facts, output, outcome.source ?? undefined, context?.unclassified, held.documentId);
+    console.log(`EXTRACTION_STRUCTURE lines=${outcome.facts.length} changed=${refined.changed} moved=${refined.moved} joined=${refined.joined} split=${refined.split} dropped=${refined.dropped.length} added=${refined.added.length}`);
+    // 뺀 줄은 지우지 않고 경고로 남겨 사용자가 원문에서 다시 넣을 수 있게 한다.
+    const dropped = refined.dropped.flatMap(fact => {
+      const evidence = fact.evidence[0];
+      return evidence?.kind === 'document' ? [formatWarning({ code: 'UNCLASSIFIED_LINE', page: evidence.page, start: evidence.start, end: evidence.end, message: 'AI가 제목·장식 줄로 보고 경력 항목에서 뺐습니다. 경력이 맞으면 직접 추가하세요.' })] : [];
+    });
+    // 항목으로 살린 줄의 '분류하지 못함' 경고는 지운다(같은 줄이 항목과 경고에 함께 나오지 않게).
+    const rescued = (warning: string, at: number) => { const item = parsed[at]; return item?.code === 'UNCLASSIFIED_LINE' && refined.added.some(line => line.page === item.page && line.start === item.start && line.end === item.end); };
+    return { ...outcome, facts: refined.facts, warnings: [...outcome.warnings.filter((warning, at) => !rescued(warning, at)), ...dropped] };
   } catch (error) {
-    console.error('EXTRACTION_STRUCTURE_SKIPPED', (error as { code?: unknown } | null)?.code ?? 'unknown');
+    const known = error as { code?: unknown; transmission?: unknown } | null;
+    markTransmission(deps, held, known?.transmission === 'not_dispatched' || known?.transmission === 'completed' ? known.transmission : 'unknown');
+    console.error('EXTRACTION_STRUCTURE_SKIPPED', known?.code ?? 'unknown');
     return outcome;
   }
 }

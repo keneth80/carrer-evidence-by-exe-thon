@@ -225,12 +225,15 @@ test('structure provider refines categories once; failure or a re-claimed task f
     const draft = async id => (await http.get(`/api/v1/resume-documents/${id}/extraction`)).body;
 
     const first = await upload();
-    const ok = { classify: async input => { calls.push(input); return { items: [{ n: input.lines.length - 1, category: 'achievement', under: null }, { n: 999, category: 'role', under: null }] }; } };
+    const ok = { classify: async input => { calls.push(input); return { items: [{ n: input.lines.length - 1, category: 'achievement', under: null }, { n: 999, category: 'role', under: null }], adds: [] }; } };
     assert.equal(await runExtractionTask({ ...api.extraction, structure: ok }, first.task.id), 'completed');
     const refined = await draft(first.resource_id);
     assert.equal(refined.facts.at(-1).category, 'achievement');
     assert.equal(refined.facts.at(-1).statement, '서비스 운영을 맡았습니다.');
     assert.equal(calls.length, 1);
+    // 원문 전체가 함께 가고, 화면의 단계 표시가 읽는 전송 상태가 작업에 남는다.
+    assert.ok(calls[0].context.source.some(line => line.text.includes('배치 파이프라인')));
+    assert.equal((await http.get(`/api/v1/product-tasks/${first.task.id}`)).body.provider_transmission, 'completed');
     assert.deepEqual(calls[0].call, { workspaceId: calls[0].call.workspaceId, taskId: first.task.id, leaseGeneration: 1 });
     assert.ok(calls[0].lines.every(line => Object.keys(line).join() === 'n,category,statement'));
 
@@ -238,6 +241,7 @@ test('structure provider refines categories once; failure or a re-claimed task f
     const broken = { classify: async () => { throw Object.assign(new Error('x'), { code: 'LINER_CALL_LIMIT' }); } };
     assert.equal(await runExtractionTask({ ...api.extraction, structure: broken }, second.task.id), 'completed');
     assert.equal((await draft(second.resource_id)).facts.at(-1).category, 'responsibility');
+    assert.equal((await http.get(`/api/v1/product-tasks/${second.task.id}`)).body.provider_transmission, 'unknown');
 
     const third = await upload();
     api.db.prepare("UPDATE ce7_tasks SET state = 'running', lease_owner = 'dead-runner', lease_generation = 1, lease_until_ms = 1 WHERE id = ?").run(third.task.id);
