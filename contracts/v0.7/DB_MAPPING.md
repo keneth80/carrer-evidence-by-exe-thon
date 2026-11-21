@@ -54,6 +54,10 @@ v0.4의 원본 17개 제품 테이블과 metadata를 보존한다. v0.7은 `ce7_
 | `ce8_external_applications` | 사용자가 다른 경로로 지원한 기록(job_key가 있으면 같은 공고 지원 차단) |
 | `demo_site_submissions` | 자체 테스트 폼 '사이트'의 접수 저장소(workspace 없음, 접수 키 유일, accepted/sealed, 갱신 불가) |
 
+### v0.7.9 붙여넣은 공고 본문(014_tailoring_job_text.sql)
+
+`ce7_tailoring_sessions.job_text`(NULL 또는 1~20000자) 열만 더했다(`ALTER TABLE ADD COLUMN`, 표 재생성 없음, 기존 행은 NULL). 사용자가 붙여넣은 공고 본문이며 API `TailoringSession.job_text`로 나간다. worker는 이 값이 있으면 공고 스냅샷의 글·요구 목록 대신 이 본문에서 요구사항을 읽는다. `ce7_job_snapshots`(검색 시점 관측 기록)는 바꾸지 않는다. 계약 v0.7.7·v0.7.8은 migration이 없어 DB 버전은 v0.7.6 다음이 v0.7.9다.
+
 ### v0.7.6 공고 맞춤 대화 단계별 진행·턴 결과(013_tailoring_progress.sql)
 
 `ce7_tailoring_sessions.progress_json`과 `ce7_messages.result_json`(둘 다 NULL 또는 유효 JSON) 열만 더했다(`ALTER TABLE ADD COLUMN`, 표 재생성 없음, 기존 행은 NULL). `progress_json`은 worker가 단계 경계(요구사항 대조·AI 점검·수정안 작성·근거 검토)마다 lease를 확인한 짧은 transaction으로 덮어쓰며 API `TailoringSession.progress`로 나간다. `result_json`은 assistant 메시지의 턴 결과(요구사항 점검표·AI 점검 질문·단계 요약·근거 검토에서 뺀 수정안과 이유)이고 API `TailoringMessage.turn`으로 나간다. 수정안 자체는 기존처럼 `ce7_edit_proposals`에 저장한다. JD 점검 작업은 `ce7_tasks.input_json.message_id = null`인 `tailor_resume` 작업이다(DECISIONS S1-18).

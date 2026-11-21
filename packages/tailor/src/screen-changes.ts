@@ -10,6 +10,8 @@ import type { FactLike, ProposedChange, ResumeBlock } from './types.ts';
 // 공고 맞춤 대화 제안의 결정적 검사(S4-04 근거·S4-13 안티슬롭·적용 가능성). 대화 worker와 단계별 파이프라인(S1-18)이 같이 쓴다.
 // 제외한 이유는 사용자에게 질문으로 보여준다. 사실 확인 변경은 사용자 메시지 안의 문장만 허용한다.
 
+const squash = (text: string) => text.replace(/\s+/g, ' ').trim();
+
 export type ScreenContext = { blocks: ResumeBlock[]; facts: FactLike[]; userMessage: string };
 
 export function screenChanges(output: ChatOutput, context: ScreenContext): { changes: ProposedChange[]; questions: string[] } {
@@ -36,6 +38,11 @@ export function screenChanges(output: ChatOutput, context: ScreenContext): { cha
       const slop = findSlop(change.after, own);
       if (slop.length) { questions.push(`'${slop.map(item => item.phrase).join("', '")}' 같은 상투적·과장 표현이 들어간 제안은 제외했어요. ${slop[0].hint}`); continue; }
     }
+    // 실제 이력서 테스트(2026-11-21): 맞춤 요약에 본문 문장을 글자 그대로 다시 넣어 같은 문장이 두 번 나왔다.
+    if (change.operation === 'insert' && change.after !== null && context.blocks.some(block => squash(block.text) === squash(change.after!))) {
+      questions.push('이미 이력서에 있는 문장과 같은 요약 문장은 다시 넣지 않았어요.');
+      continue;
+    }
     const applied = applyChanges(context.blocks, [...kept.filter(item => !item.needs_fact_confirmation), change]);
     if (applied.ok) kept.push(change);
     else questions.push(`현재 문서와 맞지 않아 제외한 제안이 있어요: ${applied.message}`);
@@ -47,6 +54,7 @@ export function screenChanges(output: ChatOutput, context: ScreenContext): { cha
 export function guardReason(change: ProposedChange, facts: FactLike[]): string | null {
   const issues = checkChange(change, facts);
   if (issues.length) return issues[0].detail;
+  if (change.operation === 'insert' && change.after !== null && facts.some(fact => squash(fact.statement) === squash(change.after!))) return '이미 이력서에 있는 문장과 같아요.';
   if (change.after !== null) {
     const own = [change.before ?? '', ...facts.filter(fact => change.fact_ids.includes(fact.id)).map(fact => fact.statement)];
     const slop = findSlop(change.after, own);

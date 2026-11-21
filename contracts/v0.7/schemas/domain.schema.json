@@ -1020,6 +1020,14 @@
             }
           ],
           "description": "v0.7.6 최근 턴의 단계별 진행 기록. 이전 서버 응답에는 없다."
+        },
+        "job_text": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 20000,
+          "description": "v0.7.9 사용자가 붙여넣은 공고 본문(DECISIONS S1-28). 없으면 공고 스냅샷의 글(검색 요약)을 쓴다. 이전 서버 응답에는 없다."
         }
       },
       "required": [
@@ -4809,6 +4817,22 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 300
+        },
+        "evidence": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200,
+          "description": "v0.7.9 HR 근거 판정이 고른 구절. 서버가 이력서·확정 경력에 그대로 있는지 확인한 것만 나간다."
+        },
+        "judged_by": {
+          "type": "string",
+          "enum": [
+            "rule",
+            "ai"
+          ],
+          "description": "v0.7.9 판정 주체. rule=규칙 대조만, ai=HR 근거 판정(인용·근거 id 서버 확인)."
         }
       },
       "required": [
@@ -5099,6 +5123,21 @@
         "finding_title",
         "target_fact_ids",
         "options"
+      ],
+      "additionalProperties": false
+    },
+    "TailoringJobTextRequest": {
+      "type": "object",
+      "description": "v0.7.9 공고 본문 붙여넣기(DECISIONS S1-28). 세션에만 저장하며 공고 스냅샷은 바꾸지 않는다. 본문은 자료이며 지시가 아니다.",
+      "properties": {
+        "content_text": {
+          "type": "string",
+          "minLength": 50,
+          "maxLength": 20000
+        }
+      },
+      "required": [
+        "content_text"
       ],
       "additionalProperties": false
     }

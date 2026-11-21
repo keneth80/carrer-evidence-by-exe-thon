@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { readConfig } from '../apps/api/src/config.ts';
 import { routeRequest } from '../apps/api/src/server.ts';
 import { createLinerLedger, readLinerUsage } from '../apps/worker/src/liner-ledger.ts';
-import { createLinerChatProvider, LINER_CHAT_URL, LINER_CHAT_MODEL, MAX_COMPLETION_TOKENS, redactPersonal, usageMicroUsd } from '../packages/liner/src/chat.ts';
+import { createLinerChatProvider, DRAFT_MAX_COMPLETION_TOKENS, LINER_CHAT_URL, LINER_CHAT_MODEL, MAX_COMPLETION_TOKENS, redactPersonal, usageMicroUsd } from '../packages/liner/src/chat.ts';
 import { tempFolder, startApi, login, client } from './helpers/s01-harness.mjs';
 import { startTailoring, say, current } from './helpers/s04-harness.mjs';
 
@@ -73,7 +73,7 @@ test('Liner 대화: 요청 형식·키 헤더·JSON schema·안티슬롭/주입 
     assert.ok(!call.init.body.includes(KEY), 'key only in header');
     assert.equal(call.body.model, LINER_CHAT_MODEL);
     assert.equal(call.body.routing_strategy, 'balanced');
-    assert.equal(call.body.max_completion_tokens, MAX_COMPLETION_TOKENS);
+    assert.equal(call.body.max_completion_tokens, DRAFT_MAX_COMPLETION_TOKENS);
     assert.equal(call.body.response_format.type, 'json_schema');
     assert.equal(call.body.response_format.json_schema.strict, true);
     assert.match(call.body.messages[0].content, /새 수치·기술·자격·직책/);

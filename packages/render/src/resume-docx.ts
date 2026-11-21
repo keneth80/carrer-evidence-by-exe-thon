@@ -1,5 +1,5 @@
 import { storeZip } from './zip.ts';
-import { resumeLayout } from '../../tailor/src/layout.ts';
+import { employerPeriods, projectSpan, resumeLayout } from '../../tailor/src/layout.ts';
 import { sectionLabel } from '../../tailor/src/types.ts';
 import type { FactLike, ResumeBlock } from '../../tailor/src/types.ts';
 
@@ -18,7 +18,7 @@ const fileSafe = (text: string) => text.replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' 
 export const TAILORED_DOCX_FILENAME = (company: string, revision: number) => `맞춤이력서_${fileSafe(company)}_v${revision}.docx`;
 const PLACEHOLDERS: DocxLine[] = [{ style: 'Title', text: '[이름]' }, { style: 'Contact', text: '[이메일] · [전화번호]' }];
 
-type Group = '요약' | '경력' | '기술' | '학력' | '자격' | '기타';
+type Group = '요약' | '경력' | '프로젝트' | '기술' | '학력' | '자격' | '기타';
 const FIXED_GROUP: Record<string, Group> = { employer: '경력', skill: '기술', education: '학력', certification: '자격', location: '기타' };
 
 // 회사 아래의 직무·기간·업무·성과·기타 문장은 그 회사 경력에 둔다. 회사가 나오기 전 소개·직무는 '요약'이다.
@@ -33,21 +33,19 @@ function styleOf(category: string, group: Group): DocxStyle {
   return category === 'role' || category === 'period' ? 'Role' : 'Bullet';
 }
 
-// 회사 구간(다음 회사 전까지)의 첫 기간. 실제 이력서는 회사 → 직함 → 기간 순서인 경우가 많다(사용자 테스트 2026-11-20).
-function firstPeriodIn(facts: FactText[], employerAt: number): number {
-  for (let at = employerAt + 1; at < facts.length && facts[at].category !== 'employer'; at++) if (facts[at].category === 'period') return at;
-  return -1;
-}
-
 export function resumeDocxLines(facts: FactText[]): DocxLine[] {
   const lines: DocxLine[] = [...PLACEHOLDERS];
   const used = new Set<Group>();
-  const consumed = new Set<number>();
+  // 회사별 기간·프로젝트 구간은 공고별 이력서와 같은 규칙(layout.ts)을 쓴다: 기간이 회사 앞에 오는 이력서, 마지막 회사 뒤 프로젝트.
+  const periods = employerPeriods(facts);
+  const consumed = new Set<number>(periods.values());
+  const projects = projectSpan(facts);
   let current: Group | null = null;
   for (let index = 0; index < facts.length; index++) {
     if (consumed.has(index)) continue;
     const fact = facts[index];
-    const group = groupOf(fact.category, current);
+    const inProject = projects !== null && index >= projects.start && index < projects.end;
+    const group: Group = inProject ? '프로젝트' : groupOf(fact.category, current);
     if (group !== current && !used.has(group)) { lines.push({ style: 'Heading1', text: group }); used.add(group); }
     current = group;
     if (fact.category === 'skill') {
@@ -58,11 +56,11 @@ export function resumeDocxLines(facts: FactText[]): DocxLine[] {
       continue;
     }
     if (fact.category === 'employer') {
-      const at = firstPeriodIn(facts, index);
-      if (at >= 0) consumed.add(at);
-      lines.push({ style: 'Heading2', text: at >= 0 ? `${fact.statement} · ${facts[at].statement}` : fact.statement });
+      const at = periods.get(index);
+      lines.push({ style: 'Heading2', text: at !== undefined ? `${fact.statement} · ${facts[at].statement}` : fact.statement });
       continue;
     }
+    if (inProject) { lines.push({ style: projects.heads.includes(index) ? 'Heading2' : 'Bullet', text: fact.statement }); continue; }
     lines.push({ style: styleOf(fact.category, group), text: fact.statement });
   }
   return lines;

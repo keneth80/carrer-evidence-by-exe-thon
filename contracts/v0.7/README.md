@@ -2,6 +2,8 @@
 
 작성·검증 기준일: **2026-11-16, Asia/Seoul**. 상태: **설계 계약과 격리 검증 자료**. API handler, worker, PDF 렌더러, 브라우저 지원 서비스가 완성됐다는 뜻이 아니다.
 
+**2026-11-21 공고 본문 붙여넣기·HR 근거 판정(v0.7.9):** migration `014_tailoring_job_text.sql`로 `ce7_tailoring_sessions.job_text` 열 추가(표 재생성 없음). 경로 `POST /api/v1/tailoring-sessions/{id}/job-text`(`putTailoringJobText`, 본문 50~20000자를 세션에 저장, 공고 스냅샷 불변). `TailoringSession.job_text`, `TailoringRequirementCheck.evidence`·`judged_by`(선택 필드: HR 근거 판정이 고른 구절과 판정 주체), 요청 schema `TailoringJobTextRequest`. JD 점검 ① 단계는 추출 → 규칙 대조 → HR 근거 판정(요구마다 인용·근거 id를 서버가 대조, 실패하면 규칙 대조 결과)이고, 단계 키(match·review·draft·critic)는 그대로다(DECISIONS S1-28).
+
 **2026-11-20 점검 항목별 추천 문장(v0.7.8):** `POST /api/v1/resume-supplement-sessions/{id}/suggestions`(점검 항목 하나의 추천 문장 작업: 작성 → 근거 검토, 결과는 assistant `turn.suggestion`), `POST /api/v1/resume-supplement-sessions/{id}/statements`(고른·직접 쓴 문장을 모델 없이 내 진술로 기록, 빈칸이 남으면 400). 새 스키마 `ResumeSupplementSuggestion`·요청 2종, `ResumeSupplementTurn.suggestion`(선택). DB 변경 없음(DECISIONS S1-24).
 
 **2026-11-20 점검 항목 작성 예시(v0.7.7):** `ResumeAiReviewItem`·`TailoringJdFinding`에 선택 필드 `example`(작성 예시, 최대 300자, 없으면 null)을 추가했다. 사실이 아닌 문장 틀이며 확정 경력에 없는 수치·기술·범위는 `[빈칸]`으로 남긴다. 서버가 빈칸 밖 표현을 확정 경력과 대조해 맞지 않으면 null로 바꾸고, 빈칸이 남은 사용자 문장은 경력 후보로 만들지 않는다. 경로·DB 변경 없음(DECISIONS S1-22).

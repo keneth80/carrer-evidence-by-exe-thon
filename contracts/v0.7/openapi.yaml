@@ -4478,6 +4478,70 @@ paths:
             application/json:
               schema:
                 $ref: ./schemas/domain.schema.json#/$defs/Problem
+  /api/v1/tailoring-sessions/{session_id}/job-text:
+    post:
+      operationId: putTailoringJobText
+      summary: 공고 본문 붙여넣기
+      description: v0.7.9(DECISIONS S1-28). 실시간 검색 공고는 요약만 저장되므로, 사용자가 채용 사이트에서 복사한 본문(50~20000자)을 세션에 저장한다. 공고 스냅샷은 바꾸지 않는다. 이후 JD 점검·수정 턴은 이 본문에서 요구사항을 다시 읽고(추출 → 규칙 대조 → HR 근거 판정 → HR 점검), 답변 턴의 수정안 작성에 직전 판정을 자료로 준다. 응답 작업이 진행 중이면 409 RESPONSE_PENDING.
+      security:
+      - sessionCookie: []
+        csrfHeader: []
+      parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          $ref: ./schemas/domain.schema.json#/$defs/Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 8
+          maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./schemas/domain.schema.json#/$defs/TailoringJobTextRequest
+      responses:
+        '200':
+          description: 저장한 세션(job_text 포함)
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/domain.schema.json#/$defs/TailoringSession
+        '400':
+          description: 형식 오류
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/domain.schema.json#/$defs/Problem
+        '401':
+          description: 인증 없음·만료
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/domain.schema.json#/$defs/Problem
+        '403':
+          description: 소유 범위·권한 거절
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/domain.schema.json#/$defs/Problem
+        '404':
+          description: 현재 소유 범위에서 찾을 수 없음
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/domain.schema.json#/$defs/Problem
+        '409':
+          description: revision·상태·중복·idempotency 충돌(RESUME_REVISION_CONFLICT·RESPONSE_PENDING·TAILORING_SESSION_CLOSED)
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/domain.schema.json#/$defs/Problem
   /api/v1/tailoring-sessions/{session_id}/restore:
     post:
       operationId: restoreResumeRevision

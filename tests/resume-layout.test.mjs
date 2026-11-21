@@ -82,3 +82,58 @@ test('첫 회사 앞의 성과는 요약 다음 주요 성과로, 학력·자격
   assert.ok(!employerView(sections)[1].items.some(item => item.includes('오픈소스')), 'trailing text after certification stays out of the last employer');
   assert.ok(sections[0].blocks.some(block => block.text.includes('오픈소스')));
 });
+
+// 실제 이력서 테스트(2026-11-21): 최근 경력은 '회사 → 기간', 오래된 경력은 '기간 → 회사' 순서라 오래된 회사 6곳의 기간이 한 칸씩 밀렸고,
+// 마지막 회사 뒤의 개인 프로젝트 15줄이 그 회사 밑에 붙었다.
+test('기간이 회사 앞에 오는 경력도 제 회사에 붙이고, 마지막 회사 뒤 "이름 | 설명" 줄부터는 프로젝트로 묶는다', async () => {
+  const { employerPeriods } = await import('../packages/tailor/src/layout.ts');
+  const { resumeDocxLines } = await import('../packages/render/src/resume-docx.ts');
+  const facts = [
+    fact('e1', 'employer', '가나 주식회사'), fact('p1', 'period', '2022.03 - 현재'), fact('w1', 'responsibility', '정산 API를 설계했습니다.'),
+    fact('p2', 'period', '2019.01 - 2022.02'), fact('e2', 'employer', '다라 주식회사'), fact('w2', 'responsibility', '주문 화면을 개발했습니다.'),
+    fact('p3', 'period', '2016.01 - 2018.12'), fact('e3', 'employer', '마바 주식회사'), fact('w3', 'responsibility', '통계 화면을 개발했습니다.'),
+    fact('j1', 'responsibility', '합성차트  |  오픈소스 제작'), fact('j2', 'responsibility', '차트 런타임을 설계했습니다.'),
+    fact('j3', 'responsibility', '합성녹음기 | 모바일 앱 개발'), fact('j4', 'responsibility', '구간 선택 흐름을 설계했습니다.'),
+    fact('d1', 'education', '가나대학교 졸업'),
+  ];
+  assert.deepEqual([...employerPeriods(facts)], [[0, 1], [4, 3], [7, 6]]);
+  const sections = resumeLayout(baseBlocks(facts), facts);
+  assert.deepEqual(sections.map(section => section.section), ['경력', '프로젝트', '학력']);
+  assert.deepEqual(employerView(sections), [
+    { title: '가나 주식회사 · 2022.03 - 현재', items: ['work:정산 API를 설계했습니다.'] },
+    { title: '다라 주식회사 · 2019.01 - 2022.02', items: ['work:주문 화면을 개발했습니다.'] },
+    { title: '마바 주식회사 · 2016.01 - 2018.12', items: ['work:통계 화면을 개발했습니다.'] },
+  ]);
+  assert.deepEqual(sections[1].employers.map(group => [group.title, group.items.map(item => item.block.text)]), [
+    ['합성차트  |  오픈소스 제작', ['차트 런타임을 설계했습니다.']], ['합성녹음기 | 모바일 앱 개발', ['구간 선택 흐름을 설계했습니다.']],
+  ]);
+  const lines = resumeDocxLines(facts).map(line => `${line.style}:${line.text}`);
+  assert.ok(lines.includes('Heading2:다라 주식회사 · 2019.01 - 2022.02') && lines.includes('Heading2:마바 주식회사 · 2016.01 - 2018.12'), 'base Word uses the same period rule');
+  assert.deepEqual(lines.slice(lines.indexOf('Heading1:프로젝트')), ['Heading1:프로젝트', 'Heading2:합성차트  |  오픈소스 제작', 'Bullet:차트 런타임을 설계했습니다.', 'Heading2:합성녹음기 | 모바일 앱 개발', 'Bullet:구간 선택 흐름을 설계했습니다.', 'Heading1:학력', 'Body:가나대학교 졸업']);
+  // 회사 → 직함 → 기간(구간 끝에 기간) 순서는 앞 회사의 기간을 다음 회사가 가져가지 않는다.
+  const tail = [fact('e1', 'employer', '가'), fact('r1', 'role', '대리'), fact('p1', 'period', '2020 - 2022'), fact('e2', 'employer', '나'), fact('r2', 'role', '사원'), fact('p2', 'period', '2018 - 2020')];
+  assert.deepEqual([...employerPeriods(tail)], [[0, 2], [3, 5]]);
+});
+
+test('프로젝트 구간의 소제목 줄은 새 묶음의 제목이 되고, 링크 안내 줄은 제목이 되지 않는다', async () => {
+  const { projectSpan } = await import('../packages/tailor/src/layout.ts');
+  const { resumeDocxLines } = await import('../packages/render/src/resume-docx.ts');
+  const facts = [
+    fact('e1', 'employer', '가나 주식회사'), fact('p1', 'period', '2022.03 - 현재'), fact('w1', 'responsibility', '정산 API를 설계했습니다.'),
+    fact('j1', 'responsibility', '합성차트  |  오픈소스 제작'), fact('j2', 'responsibility', '차트 런타임을 설계했습니다.'), fact('j3', 'responsibility', 'example-chart.com'),
+    fact('j4', 'responsibility', '합성녹음기 | 모바일 앱 개발'), fact('j5', 'responsibility', '구간 선택 흐름을 설계했습니다.'), fact('j6', 'responsibility', '스토어에서 보기'),
+    fact('h1', 'responsibility', '협업과 프로젝트 운영'), fact('h2', 'responsibility', '출시 범위를 다시 합의했습니다.'), fact('h3', 'achievement', '버그 건수를 줄였습니다.'),
+    fact('d1', 'education', '가나대학교 졸업'),
+  ];
+  assert.deepEqual(projectSpan(facts).heads, [3, 6, 9]);
+  const groups = resumeLayout(baseBlocks(facts), facts).find(section => section.section === '프로젝트').employers;
+  assert.deepEqual(groups.map(group => [group.title, group.items.map(item => item.block.text)]), [
+    ['합성차트  |  오픈소스 제작', ['차트 런타임을 설계했습니다.', 'example-chart.com']],
+    ['합성녹음기 | 모바일 앱 개발', ['구간 선택 흐름을 설계했습니다.', '스토어에서 보기']],
+    ['협업과 프로젝트 운영', ['출시 범위를 다시 합의했습니다.', '버그 건수를 줄였습니다.']],
+  ]);
+  assert.ok(resumeDocxLines(facts).some(line => line.style === 'Heading2' && line.text === '협업과 프로젝트 운영'), 'base Word uses the same rule');
+  // 회사 구간(프로젝트 제목 줄이 나오기 전)의 짧은 줄은 소제목으로 보지 않는다.
+  const plain = [fact('e1', 'employer', '가'), fact('w0', 'responsibility', '프론트엔드 총괄'), fact('w1', 'responsibility', '화면을 개발했습니다.')];
+  assert.equal(projectSpan(plain), null);
+});

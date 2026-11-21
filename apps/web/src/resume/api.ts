@@ -34,9 +34,9 @@ export type JobSnapshot = {
   id: string; job_key: string; company_name: string; title: string; canonical_url: string; site_id: string; content_text: string;
   content_hash: string; open_status: 'open' | 'closed' | 'unknown'; requirements: JobRequirement[]; data_origin: 'live' | 'synthetic'; observed_at: string;
 };
-export type TailoringSession = { id: string; job_snapshot_id: string; fact_revision_id: string; current_resume_revision_id: string | null; revision: number; state: 'editing' | 'ready' | 'waiting_user' | 'closed'; created_at: string; progress?: SupplementProgress | null };
+export type TailoringSession = { id: string; job_snapshot_id: string; fact_revision_id: string; current_resume_revision_id: string | null; revision: number; state: 'editing' | 'ready' | 'waiting_user' | 'closed'; created_at: string; progress?: SupplementProgress | null; job_text?: string | null };
 // 공고(JD) 맞춤 대화 턴 결과(v0.7.6, S1-18). 서버 packages/tailor/src/tailor-pipeline.ts TailorTurn과 같은 모양이다.
-export type RequirementCheck = { requirement_id: string; requirement: string; importance: 'required' | 'preferred' | 'unknown'; status: 'met' | 'weak' | 'missing'; fact_ids: string[]; note: string };
+export type RequirementCheck = { requirement_id: string; requirement: string; importance: 'required' | 'preferred' | 'unknown'; status: 'met' | 'weak' | 'missing'; fact_ids: string[]; note: string; evidence?: string | null; judged_by?: 'rule' | 'ai' };
 export type JdFinding = { requirement_id: string; fact_ids: string[]; title: string; question: string; example?: string | null };
 export type TailorPipeline = { mode: 'staged' | 'single'; stages: SupplementStage[]; requirements_checked: number; ai_findings: number; changes_reviewed: number; dropped_changes: { text: string; reason: string; by: 'critic' | 'guard' }[]; changes_withheld: boolean };
 export type TailorTurn = { kind: 'jd_check' | 'answer'; requirements: RequirementCheck[]; findings: JdFinding[]; pipeline: TailorPipeline };
@@ -119,6 +119,7 @@ export const api = {
   sessionTasks: (id: string) => call<{ items: (Task & { input_revision_ids: string[] })[] }>('GET', `/api/v1/tailoring-sessions/${id}/tasks`),
   sendMessage: (id: string, body: { expected_resume_revision_id: string | null; content: string }, key: string) => call<{ task: Task; resource_id: string }>('POST', `/api/v1/tailoring-sessions/${id}/messages`, JSON.stringify(body), 'application/json', key),
   retryMessage: (id: string, messageId: string, key: string) => call<{ task: Task; resource_id: string }>('POST', `/api/v1/tailoring-sessions/${id}/messages/${messageId}/retry`, '{}', 'application/json', key),
+  putJobText: (id: string, content_text: string, key: string) => call<TailoringSession>('POST', `/api/v1/tailoring-sessions/${id}/job-text`, JSON.stringify({ content_text }), 'application/json', key),
   requestJdCheck: (id: string, body: { expected_resume_revision_id: string }, key: string) => call<{ task: Task; resource_id: string }>('POST', `/api/v1/tailoring-sessions/${id}/jd-checks`, JSON.stringify(body), 'application/json', key),
   restore: (id: string, body: { source_revision_id: string; expected_resume_revision_id: string }, key: string) => call<ResumeRevision>('POST', `/api/v1/tailoring-sessions/${id}/restore`, JSON.stringify(body), 'application/json', key),
   acceptProposal: (id: string, body: { expected_resume_revision_id: string; expected_content_hash: string; change_indexes?: number[] }, key: string) => call<ResumeRevision>('POST', `/api/v1/edit-proposals/${id}/accept`, JSON.stringify(body), 'application/json', key),

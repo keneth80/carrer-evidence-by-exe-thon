@@ -8,7 +8,7 @@ import { confirmFacts, getExtractionDraft, getProductTask, getResumeDocument, ge
 import type { ObjectStore } from './resume/storage.ts';
 import { createResumeAiReview, getResumeAiReview } from './resume/ai-review.ts';
 import { createSupplementSession, getSupplementSession, postSupplementMessage, postSupplementStatement, postSupplementSuggestion } from './resume/supplement.ts';
-import { createTailoringSession, getTailoringSession, listSessionTasks, listTailoringMessages, postTailoringMessage, requestJdCheck, restoreResumeRevision, retryTailoringMessage } from './tailor/sessions.ts';
+import { createTailoringSession, getTailoringSession, listSessionTasks, listTailoringMessages, postTailoringMessage, putSessionJobText, requestJdCheck, restoreResumeRevision, retryTailoringMessage } from './tailor/sessions.ts';
 import { acceptEditProposal, listEditProposals, rejectEditProposal } from './tailor/proposals.ts';
 import { createArtifact, finalizeResumeRevision, getArtifactContent, getArtifactMeta, getResumeRevision, listRevisionArtifacts, listSessionRevisions } from './tailor/revisions.ts';
 import { cancelProductTask, createResumeSearch, createSearchIntent, getJob, getResumeSearch, getSearchIntent } from './search/handlers.ts';
@@ -61,6 +61,7 @@ const routes: Route[] = [
   { method: 'POST', pattern: new RegExp(`^/api/v1/tailoring-sessions/${ID}/messages$`), write: true, handle: (deps, request, principal, id) => postTailoringMessage(deps, request, principal, id) },
   { method: 'POST', pattern: new RegExp(`^/api/v1/tailoring-sessions/${ID}/messages/${ID}/retry$`), write: true, handle: (deps, request, principal, id, second) => retryTailoringMessage(deps, request, principal, id, second) },
   { method: 'POST', pattern: new RegExp(`^/api/v1/tailoring-sessions/${ID}/jd-checks$`), write: true, handle: (deps, request, principal, id) => requestJdCheck(deps, request, principal, id) },
+  { method: 'POST', pattern: new RegExp(`^/api/v1/tailoring-sessions/${ID}/job-text$`), write: true, handle: (deps, request, principal, id) => putSessionJobText(deps, request, principal, id) },
   { method: 'GET', pattern: new RegExp(`^/api/v1/tailoring-sessions/${ID}/proposals$`), write: false, handle: (deps, request, principal, id) => listEditProposals(deps, request, principal, id) },
   { method: 'GET', pattern: new RegExp(`^/api/v1/tailoring-sessions/${ID}/tasks$`), write: false, handle: (deps, request, principal, id) => listSessionTasks(deps, request, principal, id) },
   { method: 'GET', pattern: new RegExp(`^/api/v1/tailoring-sessions/${ID}/revisions$`), write: false, handle: (deps, request, principal, id) => listSessionRevisions(deps, request, principal, id) },

@@ -41,6 +41,7 @@
 | 02 대화·PDF | `POST /api/v1/tailoring-sessions` | 공고별 대화형 이력서 편집 시작 |
 | 02 대화·PDF | `GET /api/v1/tailoring-sessions/{session_id}` | 편집 상태 조회 · 단계별 진행 기록 `progress`(v0.7.6, 구현) |
 | 02 대화·PDF | `POST /api/v1/tailoring-sessions/{session_id}/messages` | 대화 입력과 수정 제안 작업 · v0.7.6부터 수정안 작성 → 근거 검토 |
+| 02 대화·PDF | `POST /api/v1/tailoring-sessions/{session_id}/job-text` | 공고 본문 붙여넣기: 세션에 저장, 이후 JD 점검·수정이 이 본문을 씀(v0.7.9, 구현) |
 | 02 대화·PDF | `POST /api/v1/tailoring-sessions/{session_id}/jd-checks` | 공고(JD) 맞춤 점검 요청: 요구사항 대조 → AI 점검(v0.7.6, 구현: mock·Liner) |
 | 02 대화·PDF | `GET /api/v1/tailoring-sessions/{session_id}/messages` | 대화 조회 · assistant 턴 결과 `turn`(v0.7.6, 구현) |
 | 02 대화·PDF | `GET /api/v1/tailoring-sessions/{session_id}/proposals` | 변경 비교·확인 질문 조회 |

@@ -7,10 +7,13 @@ import type { FactLike, ProposedChange, ResumeBlock } from './types.ts';
 // 응답은 일반 답변(reply)과 실제 문서 변경안(changes)·확인 질문(questions)으로 나뉜다.
 
 export type ChatTurn = { role: 'user' | 'assistant'; content: string };
-export type ChatJob = { company_name: string; title: string; content_text: string; requirements: JobRequirement[] };
+// content_source: 공고 글의 출처. 'pasted'는 사용자가 붙여넣은 본문(S1-28), 없거나 'summary'는 검색 요약·기존 공고 글.
+export type ChatJob = { company_name: string; title: string; content_text: string; requirements: JobRequirement[]; content_source?: 'summary' | 'pasted' };
+// 직전 JD 점검의 요구사항 판정. 수정안 작성이 어느 요구를 겨냥할지 정하는 자료다(근거는 아니다).
+export type ChatRequirementCheck = { requirement: string; importance: JobRequirement['importance']; status: 'met' | 'weak' | 'missing'; note: string };
 // call: 유료 호출 원장에 남길 작업·lease generation. live provider는 이 값 없이 호출하지 않는다.
 export type ChatCallContext = { workspaceId: string; taskId: string; leaseGeneration: number };
-export type ChatInput = { job: ChatJob; facts: FactLike[]; blocks: ResumeBlock[]; history: ChatTurn[]; message: string; signal?: AbortSignal; call?: ChatCallContext };
+export type ChatInput = { job: ChatJob; facts: FactLike[]; blocks: ResumeBlock[]; history: ChatTurn[]; message: string; checks?: ChatRequirementCheck[]; signal?: AbortSignal; call?: ChatCallContext };
 export type ChatOutput = { reply: string; changes: ProposedChange[]; questions: string[] };
 export type ChatProvider = { readonly mode: 'mock' | 'live'; respond(input: ChatInput): Promise<ChatOutput> };
 

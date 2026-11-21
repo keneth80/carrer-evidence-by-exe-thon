@@ -11,6 +11,7 @@ export const resumeReviewMigrationUrl = new URL('../../../contracts/v0.7/migrati
 export const resumeSupplementMigrationUrl = new URL('../../../contracts/v0.7/migrations/011_resume_supplement.sql', import.meta.url);
 export const supplementProgressMigrationUrl = new URL('../../../contracts/v0.7/migrations/012_supplement_progress.sql', import.meta.url);
 export const tailoringProgressMigrationUrl = new URL('../../../contracts/v0.7/migrations/013_tailoring_progress.sql', import.meta.url);
+export const tailoringJobTextMigrationUrl = new URL('../../../contracts/v0.7/migrations/014_tailoring_job_text.sql', import.meta.url);
 const metaTable = '_starter_schema';
 const BASELINE_VERSION = 'v0.4';
 const BASELINE_TABLES = 17;
@@ -34,6 +35,8 @@ export function defaultMigrations(): Migration[] {
     { version: 'v0.7.5', sql: readFileSync(supplementProgressMigrationUrl, 'utf8'), tablesAfter: 55 },
     // 공고 맞춤 대화 단계별 진행·턴 결과: ce7_tailoring_sessions.progress_json, ce7_messages.result_json 열 추가(표 재생성 없음, DECISIONS S1-18).
     { version: 'v0.7.6', sql: readFileSync(tailoringProgressMigrationUrl, 'utf8'), tablesAfter: 55 },
+    // 붙여넣은 공고 본문: ce7_tailoring_sessions.job_text 열 추가(표 재생성 없음, DECISIONS S1-28). 계약 v0.7.7·v0.7.8은 migration이 없었다.
+    { version: 'v0.7.9', sql: readFileSync(tailoringJobTextMigrationUrl, 'utf8'), tablesAfter: 55 },
   ];
   return cachedMigrations.map(migration => ({ ...migration }));
 }

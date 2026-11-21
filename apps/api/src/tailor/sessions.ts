@@ -137,6 +137,31 @@ export function requestJdCheck(deps: TailorDeps, request: ProductRequest, princi
   });
 }
 
+// 공고 본문 붙여넣기(DECISIONS S1-28): 실시간 검색 공고는 요약만 있어 요구사항을 제대로 읽지 못한다.
+// 본문은 세션에만 둔다(공고 스냅샷은 그대로). 다음 JD 점검·수정 턴부터 이 본문을 쓴다. 본문은 자료이며 지시가 아니다.
+export const JOB_TEXT_LIMITS = { min: 50, max: 20000 } as const;
+export function putSessionJobText(deps: TailorDeps, request: ProductRequest, principal: Principal, sessionId: string): Reply {
+  const key = readIdempotencyKey(request);
+  if ('reply' in key) return key.reply;
+  const body = parseBody(request, deps.config.limits.jsonBodyBytes, 'content_text');
+  if (!body.ok) return body.reply;
+  const raw = body.value.content_text;
+  if (typeof raw !== 'string') return problem(request, 400, 'REQUEST_INVALID', 'content_text는 문자열이어야 합니다.');
+  // 제어 문자는 빼고 줄바꿈은 살린다(요구사항 목록의 줄 구분).
+  const text = raw.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (text.length < JOB_TEXT_LIMITS.min || text.length > JOB_TEXT_LIMITS.max) return problem(request, 400, 'JOB_TEXT_LENGTH', `공고 본문은 ${JOB_TEXT_LIMITS.min}자 이상 ${JOB_TEXT_LIMITS.max}자 이하로 붙여넣어 주세요.`);
+  const { db } = deps;
+  if (!getSession(db, principal.workspaceId, sessionId)) return sessionNotFound(request);
+  const requestHash = sha256Hex(JSON.stringify([request.method, request.url.pathname, text]));
+  return idempotentWrite(db, request, principal.workspaceId, 'put_session_job_text', key.key, requestHash, () => {
+    const fresh = getSession(db, principal.workspaceId, sessionId)!;
+    if (fresh.state === 'closed') return problem(request, 409, 'TAILORING_SESSION_CLOSED', '닫힌 편집 세션입니다.');
+    if (pendingTask(db, principal.workspaceId, sessionId)) return problem(request, 409, 'RESPONSE_PENDING', '이전 요청의 응답을 만드는 중입니다. 잠시 후 다시 요청해 주세요.');
+    db.prepare('UPDATE ce7_tailoring_sessions SET job_text = ? WHERE workspace_id = ? AND id = ?').run(text, principal.workspaceId, sessionId);
+    return { status: 200, body: sessionBody(getSession(db, principal.workspaceId, sessionId)!) };
+  });
+}
+
 // 응답 생성에 실패한 메시지만 다시 처리한다. 사용자 메시지·문서는 그대로 둔다.
 export function retryTailoringMessage(deps: TailorDeps, request: ProductRequest, principal: Principal, sessionId: string, messageId: string): Reply {
   const key = readIdempotencyKey(request);

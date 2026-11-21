@@ -246,7 +246,7 @@ test('v0.7.6 migration: 기존 편집 세션·메시지를 지우지 않고 prog
     let db = openDatabase(path, readFileSync(contractSchemaUrl, 'utf8'), defaultMigrations().slice(0, 6));
     assert.equal(describeDatabase(db).contract_version, 'v0.7.5');
     db.close();
-    db = openDatabase(path);
+    db = openDatabase(path, readFileSync(contractSchemaUrl, 'utf8'), defaultMigrations().slice(0, 7));
     const described = describeDatabase(db);
     assert.equal(described.contract_version, 'v0.7.6');
     assert.equal(described.domain_tables, 55);
@@ -299,7 +299,7 @@ test('화면 진행 계산: JD 점검은 요구사항 대조·AI 점검, 답변 
   assert.equal(progressView(null, 't', 'staged', true).stages[0].label, '규칙 점검');
 });
 
-test('live(가짜 fetch): JD 점검 1건 + 답변 턴 2건(수정안 작성·근거 검토)이 원장에 각각 chat으로 예약되고, 근거 검토가 불명이면 작업도 불명으로 남는다', async () => {
+test('live(가짜 fetch): JD 점검 2건(근거 판정·HR 점검) + 답변 턴 2건(수정안 작성·근거 검토)이 원장에 각각 chat으로 예약되고, 근거 검토가 불명이면 작업도 불명으로 남는다', async () => {
   const { folder, cleanup } = tempFolder('tailor-live-');
   const api = await startApi(folder);
   try {
@@ -315,7 +315,8 @@ test('live(가짜 fetch): JD 점검 1건 + 답변 턴 2건(수정안 작성·근
       names.push(name);
       if (name === 'tailor_change_critic' && criticFails) throw new TypeError('socket hang up');
       const context = body.messages.map(item => item.content).join('\n');
-      const content = name === 'jd_check_review'
+      const content = name === 'jd_requirement_assessment' ? { assessments: [] }
+        : name === 'jd_check_review'
         ? { reply: '근거가 약한 요구를 물어볼게요.', findings: [], questions: ['어떤 화면을 만들었나요?'] }
         : name === 'tailor_change_critic'
           ? { verdicts: [{ index: 0, verdict: 'keep', reason: '순서만 바꿔요.' }] }
@@ -331,14 +332,14 @@ test('live(가짜 fetch): JD 점검 1건 + 답변 턴 2건(수정안 작성·근
     const { revision } = await current(http, sessionId);
     const asked = await http.post(`/api/v1/tailoring-sessions/${sessionId}/jd-checks`, { json: { expected_resume_revision_id: revision.id } });
     assert.equal(await runTailor(api, overrides), 'succeeded');
-    assert.deepEqual(names, ['jd_check_review']);
+    assert.deepEqual(names, ['jd_requirement_assessment', 'jd_check_review']);
     const sent = await http.post(`/api/v1/tailoring-sessions/${sessionId}/messages`, { json: { expected_resume_revision_id: revision.id, content: '이 공고에 맞춰줘' } });
     assert.equal(await runTailor(api, overrides), 'succeeded');
-    assert.deepEqual(names, ['jd_check_review', 'resume_edit', 'tailor_change_critic']);
+    assert.deepEqual(names, ['jd_requirement_assessment', 'jd_check_review', 'resume_edit', 'tailor_change_critic']);
     const usage = readLinerUsage(api.db, 'chat');
-    assert.equal(usage.calls, 3, 'each stage call is reserved separately in the chat ledger');
+    assert.equal(usage.calls, 4, 'each stage call is reserved separately in the chat ledger');
     const rows = api.db.prepare('SELECT task_id FROM ce7_provider_calls WHERE purpose = ? ORDER BY created_at_ms, rowid').all('chat').map(row => row.task_id);
-    assert.deepEqual(rows, [asked.body.task.id, sent.body.task.id, sent.body.task.id]);
+    assert.deepEqual(rows, [asked.body.task.id, asked.body.task.id, sent.body.task.id, sent.body.task.id]);
 
     criticFails = true;
     const third = await http.post(`/api/v1/tailoring-sessions/${sessionId}/messages`, { json: { expected_resume_revision_id: revision.id, content: '한 번 더 맞춰줘' } });

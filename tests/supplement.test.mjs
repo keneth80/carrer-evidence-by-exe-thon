@@ -189,7 +189,7 @@ test('v0.7.4 migration: ce7_tasks 재생성 후 기존 작업·원장·색인이
     db = openDatabase(path);
     const described = describeDatabase(db);
     assert.ok(described.applied_versions.includes('v0.7.4'));
-    assert.equal(described.contract_version, 'v0.7.6', 'later migrations (v0.7.5·v0.7.6 progress columns) apply on top');
+    assert.equal(described.contract_version, 'v0.7.9', 'later migrations (v0.7.5·v0.7.6 progress columns, v0.7.9 job text) apply on top');
     assert.equal(described.domain_tables, 55);
     assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
     assert.equal(db.prepare("SELECT kind FROM ce7_tasks WHERE id = 't1'").get().kind, 'review_resume');

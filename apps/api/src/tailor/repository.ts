@@ -4,7 +4,7 @@ import type { ProposedChange, ResumeBlock } from '../../../../packages/tailor/sr
 
 // 편집 세션·메시지·제안·공고별 이력서 revision·렌더 파일 조회. 모든 조회는 인증된 workspace_id로 제한한다.
 
-export type SessionRow = { id: string; workspace_id: string; job_snapshot_id: string; fact_revision_id: string; current_resume_revision_id: string | null; revision: number; state: string; created_at_ms: number; progress_json?: string | null };
+export type SessionRow = { id: string; workspace_id: string; job_snapshot_id: string; fact_revision_id: string; current_resume_revision_id: string | null; revision: number; state: string; created_at_ms: number; progress_json?: string | null; job_text?: string | null };
 export type MessageRow = { id: string; workspace_id: string; session_id: string; role: 'user' | 'assistant'; content: string; base_resume_revision_id: string | null; created_at_ms: number; result_json?: string | null };
 export type RevisionRow = {
   id: string; workspace_id: string; session_id: string; job_snapshot_id: string; fact_revision_id: string; revision: number; parent_revision_id: string | null;
@@ -38,6 +38,8 @@ export function sessionBody(row: SessionRow) {
     current_resume_revision_id: row.current_resume_revision_id, revision: row.revision, state: row.state, created_at: iso(row.created_at_ms),
     // 최근 턴의 단계별 진행 기록(v0.7.6, S1-18). progress.task_id가 진행 중 작업과 같을 때만 그 턴의 진행이다.
     progress: row.progress_json ? JSON.parse(row.progress_json) as unknown : null,
+    // 사용자가 붙여넣은 공고 본문(v0.7.9, S1-28). 없으면 공고 스냅샷의 글(검색 요약)을 쓴다.
+    job_text: row.job_text ?? null,
   };
 }
 

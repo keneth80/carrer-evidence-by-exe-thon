@@ -20,8 +20,8 @@ test('existing v0.4 database migrates to v0.7 in place and keeps its rows', () =
 
     db = openDatabase(path);
     const described = describeDatabase(db);
-    assert.equal(described.contract_version, 'v0.7.6');
-    assert.deepEqual(described.applied_versions, ['v0.4', 'v0.7', 'v0.7.1', 'v0.7.2', 'v0.7.3', 'v0.7.4', 'v0.7.5', 'v0.7.6']);
+    assert.equal(described.contract_version, 'v0.7.9');
+    assert.deepEqual(described.applied_versions, ['v0.4', 'v0.7', 'v0.7.1', 'v0.7.2', 'v0.7.3', 'v0.7.4', 'v0.7.5', 'v0.7.6', 'v0.7.9']);
     assert.equal(described.domain_tables, 55);
     assert.equal(db.prepare("SELECT id FROM workspaces WHERE id='legacy'").get().id, 'legacy');
     db.close();
@@ -43,7 +43,7 @@ test('an existing v0.7 database gains the v0.7.1 browser-apply tables in place a
     db.close();
     db = openDatabase(path);
     const described = describeDatabase(db);
-    assert.deepEqual(described.applied_versions, ['v0.4', 'v0.7', 'v0.7.1', 'v0.7.2', 'v0.7.3', 'v0.7.4', 'v0.7.5', 'v0.7.6']);
+    assert.deepEqual(described.applied_versions, ['v0.4', 'v0.7', 'v0.7.1', 'v0.7.2', 'v0.7.3', 'v0.7.4', 'v0.7.5', 'v0.7.6', 'v0.7.9']);
     assert.equal(described.domain_tables, 55);
     assert.equal(db.prepare("SELECT id FROM ce7_principals WHERE id='p1'").get().id, 'p1');
     assert.ok(db.prepare("SELECT name FROM sqlite_master WHERE name='demo_site_submissions'").get());
@@ -72,7 +72,7 @@ test('v0.7.2 rebuilds ce7_documents for DOCX in place: linked extraction/fact ro
     db.close();
 
     db = openDatabase(path);
-    assert.deepEqual(describeDatabase(db).applied_versions, ['v0.4', 'v0.7', 'v0.7.1', 'v0.7.2', 'v0.7.3', 'v0.7.4', 'v0.7.5', 'v0.7.6']);
+    assert.deepEqual(describeDatabase(db).applied_versions, ['v0.4', 'v0.7', 'v0.7.1', 'v0.7.2', 'v0.7.3', 'v0.7.4', 'v0.7.5', 'v0.7.6', 'v0.7.9']);
     assert.equal(describeDatabase(db).domain_tables, 55);
     assert.equal(db.prepare("SELECT current_fact_revision_id AS f FROM ce7_documents WHERE id = 'd1'").get().f, 'f1');
     assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
@@ -110,7 +110,7 @@ test('v0.7.3 rebuilds ce7_tasks for review_resume in place: tasks, provider-call
     db.close();
 
     db = openDatabase(path);
-    assert.deepEqual(describeDatabase(db).applied_versions, ['v0.4', 'v0.7', 'v0.7.1', 'v0.7.2', 'v0.7.3', 'v0.7.4', 'v0.7.5', 'v0.7.6']);
+    assert.deepEqual(describeDatabase(db).applied_versions, ['v0.4', 'v0.7', 'v0.7.1', 'v0.7.2', 'v0.7.3', 'v0.7.4', 'v0.7.5', 'v0.7.6', 'v0.7.9']);
     assert.equal(describeDatabase(db).domain_tables, 55);
     assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
     assert.equal(db.prepare("SELECT kind FROM ce7_tasks WHERE id = 't1'").get().kind, 'search_jobs');

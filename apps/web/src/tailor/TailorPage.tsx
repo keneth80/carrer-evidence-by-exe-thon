@@ -13,6 +13,7 @@ import type { ChatStatus } from './ChatPanel.tsx';
 import { loadTailor, replyState, statementConfirmed } from './data.ts';
 import type { TailorData } from './data.ts';
 import { changedBlockIds, ResumePreview } from './ResumePreview.tsx';
+import { JobTextBox } from './JobTextBox.tsx';
 import { downloadTailoredDocx } from '../resume/download-docx.ts';
 
 // U04 대화형 맞춤 편집: 공고 요구 / AI 대화 / 이력서 미리보기. 작은 화면은 탭으로 전환한다.
@@ -181,7 +182,9 @@ export function TailorPage({ sessionId }: { sessionId: string }) {
         <h2 id="req-title">공고 요구</h2>
         <p className="muted">요구를 누르면 연결된 경력 문장을 미리보기에서 강조합니다.</p>
         {/* 실시간 검색 공고는 요약만 있어 요구 목록이 비어 있다. JD 점검이 공고 글에서 요구를 읽어 점검표로 보여 준다. */}
-        {job.requirements.length === 0 && <p className="muted" role="note">이 공고는 검색 요약만 있어 요구 목록이 없어요. ‘HR 전문가에게 JD 점검받기’를 누르면 공고 글에서 요구사항을 읽어 확정 경력과 대조해요(원문과 다를 수 있어요).</p>}
+        {job.requirements.length === 0 && !session.job_text && <p className="muted" role="note">이 공고는 검색 요약만 있어 요구 목록이 없어요. 아래에 공고 본문을 붙여넣으면 자격 요건·우대 사항을 모두 읽어 대조해요. 붙여넣지 않으면 요약에서 읽은 요구만 대조해요(원문과 다를 수 있어요).</p>}
+        <JobTextBox saved={session.job_text ?? null} sourceUrl={/^https?:\/\//i.test(job.canonical_url) ? job.canonical_url : null} busy={busy || pendingTask !== null}
+          onSave={text => run(async () => { await api.putJobText(session.id, text, crypto.randomUUID()); })} onCheck={requestJdCheck} />
         <ul className="req-list">{job.requirements.map(requirement => {
           const reason = linked.get(requirement.id);
           const ids = reason?.fact_ids ?? [];

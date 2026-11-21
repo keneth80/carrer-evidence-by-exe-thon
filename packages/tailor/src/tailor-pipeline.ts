@@ -1,7 +1,7 @@
-import { checkRequirements, JD_LIMITS, screenExtractedRequirements, screenJdReview } from './jd-check.ts';
+import { checkRequirements, JD_LIMITS, screenAssessments, screenExtractedRequirements, screenJdReview } from './jd-check.ts';
 import type { CriticChange, JdFinding, RequirementCheck, TailorStageProvider } from './jd-check.ts';
 import { isChatOutput } from './provider.ts';
-import type { ChatCallContext, ChatJob, ChatOutput, ChatProvider, ChatTurn } from './provider.ts';
+import type { ChatCallContext, ChatJob, ChatOutput, ChatProvider, ChatRequirementCheck, ChatTurn } from './provider.ts';
 import { guardReason, screenChanges } from './screen-changes.ts';
 import { createTracker, LeaseLost } from './stage-tracker.ts';
 import type { StageSummary, Tracker, Transmission, TurnProgress } from './stage-tracker.ts';
@@ -29,7 +29,8 @@ export type TailorPipelineDeps = {
   invoke: <T>(work: (signal: AbortSignal) => Promise<T>) => Promise<T>;
   call?: ChatCallContext;
 };
-export type TailorPipelineInput = { job: ChatJob; facts: FactLike[]; blocks: ResumeBlock[]; history: ChatTurn[]; message: string | null; userMessages: { id: string; content: string }[] };
+// checks: 직전 JD 점검의 요구사항 판정(답변 턴의 수정안 작성 자료). 없으면 공고 글만 보고 쓴다.
+export type TailorPipelineInput = { job: ChatJob; facts: FactLike[]; blocks: ResumeBlock[]; history: ChatTurn[]; message: string | null; userMessages: { id: string; content: string }[]; checks?: ChatRequirementCheck[] };
 export type TailorPipelineResult =
   | { kind: 'ok'; reply: string; changes: ProposedChange[]; questions: string[]; turn: TailorTurn; transmission: Transmission }
   | { kind: 'failed'; code: string; transmission: Transmission }
@@ -53,9 +54,9 @@ async function matchRequirements(deps: TailorPipelineDeps, input: TailorPipeline
   t.set('match', 'running');
   const extract = deps.stages?.extract;
   if (input.job.requirements.length > 0 || !extract) {
-    const checks = checkRequirements(input.facts, input.job);
-    t.set('match', 'done', countsOf(checks));
-    return { checks, job: input.job, extracted: 0, failed: null };
+    const checks = await assess(deps, input, input.job, checkRequirements(input.facts, input.job), t);
+    t.set('match', 'done', countsOf(checks.checks) + checks.note);
+    return { checks: checks.checks, job: input.job, extracted: 0, failed: null };
   }
   const got = await t.call(signal => extract({ job: input.job, signal, call: deps.call }));
   const requirements = got.ok ? screenExtractedRequirements(got.value, input.job.content_text) : null;
@@ -65,9 +66,21 @@ async function matchRequirements(deps: TailorPipelineDeps, input: TailorPipeline
     return { checks: [], job: input.job, extracted: 0, failed: code };
   }
   const job = { ...input.job, requirements };
-  const checks = checkRequirements(input.facts, job);
-  t.set('match', 'done', `공고 글에서 요구사항 ${requirements.length}개 추출 · ${countsOf(checks)}`);
-  return { checks, job, extracted: requirements.length, failed: null };
+  const checks = await assess(deps, input, job, checkRequirements(input.facts, job), t);
+  t.set('match', 'done', `${sourceName(job)}에서 요구사항 ${requirements.length}개 추출 · ${countsOf(checks.checks)}${checks.note}`);
+  return { checks: checks.checks, job, extracted: requirements.length, failed: null };
+}
+
+const sourceName = (job: ChatJob) => job.content_source === 'pasted' ? '붙여넣은 공고 본문' : '공고 글';
+
+// 근거 판정(S1-28): 규칙 대조 결과를 HR 판정 호출이 요구마다 다시 본다. 실패하면 규칙 대조 결과를 그대로 쓰고 그 사실을 단계 기록에 남긴다.
+async function assess(deps: TailorPipelineDeps, input: TailorPipelineInput, job: ChatJob, checks: RequirementCheck[], t: T): Promise<{ checks: RequirementCheck[]; note: string }> {
+  const run = deps.stages?.assess;
+  if (!run || checks.length === 0) return { checks, note: '' };
+  const got = await t.call(signal => run({ job, facts: input.facts, blocks: input.blocks, checks, signal, call: deps.call }));
+  const judged = got.ok ? screenAssessments(got.value, checks, input.facts, input.blocks) : null;
+  if (!judged) return { checks, note: ` · HR 근거 판정 실패(${got.ok ? 'CHAT_OUTPUT_INVALID' : got.code}), 규칙 대조만 했어요` };
+  return { checks: judged, note: ` · HR 근거 판정 ${judged.filter(check => check.judged_by === 'ai').length}개` };
 }
 
 const countsOf = (checks: RequirementCheck[]) => `충족 ${countOf(checks, 'met')} · 근거 약함 ${countOf(checks, 'weak')} · 미기재 ${countOf(checks, 'missing')}`;
@@ -93,10 +106,11 @@ async function jdCheckTurn(deps: TailorPipelineDeps, input: TailorPipelineInput,
   t.set('critic', 'skipped', 'JD 점검에는 수정안이 없어요');
   const findings = screened?.findings ?? [];
   // AI 점검 실패를 숨기지 않는다: 대조 결과만 보여 준다고 답에 적는다. 추출한 요구는 요약에서 읽었다고 밝힌다.
-  const source = extracted > 0 ? `공고 글(검색 요약)에서 요구사항 ${extracted}개를 읽어 확정 경력과 대조했어요(${counts}). 요약에서 읽은 목록이라 공고 원문과 다를 수 있어요.` : `요구사항 ${checks.length}개를 확정 경력과 대조했어요(${counts}).`;
+  const pasted = job.content_source === 'pasted';
+  const source = extracted > 0 ? (pasted ? `붙여넣은 공고 본문에서 요구사항 ${extracted}개를 읽어 확정 경력과 대조했어요(${counts}).` : `공고 글(검색 요약)에서 요구사항 ${extracted}개를 읽어 확정 경력과 대조했어요(${counts}). 요약에서 읽은 목록이라 공고 원문과 다를 수 있어요.`) : `요구사항 ${checks.length}개를 확정 경력과 대조했어요(${counts}).`;
   const reply = checks.length === 0
     ? `${extractFailed ? `공고에서 요구사항을 읽지 못했어요(${extractFailed}).` : '이 공고 글에서는 대조할 요구사항을 찾지 못했어요.'} ${NO_TABLE}`
-    : screened?.reply ? (extracted > 0 ? `${screened.reply}\n\n(요구사항은 검색 요약에서 읽었어요. 공고 원문과 다를 수 있어요.)` : screened.reply)
+    : screened?.reply ? (extracted > 0 ? `${screened.reply}\n\n${pasted ? '(요구사항은 붙여넣은 공고 본문에서 읽었어요.)' : '(요구사항은 검색 요약에서 읽었어요. 공고 원문과 다를 수 있어요. 공고 본문을 붙여넣으면 더 정확해요.)'}` : screened.reply)
     : failed ? `${source} HR 전문가 점검은 하지 못했어요(${failed}). 근거가 약한 요구를 직접 말씀해 주시면 수정안을 만들어 드릴게요.` : `${source} 근거가 약한 요구에 대해 알려 주시면 수정안을 만들어 드릴게요.`;
   const questions = [...new Set([...findings.map(item => item.question), ...(screened?.questions ?? [])])].slice(0, JD_LIMITS.questions);
   const turn: TailorTurn = { kind: 'jd_check', requirements: checks, findings, pipeline: summary(deps, t, { requirements_checked: checks.length, ai_findings: findings.length, changes_reviewed: 0, dropped_changes: [], changes_withheld: false }) };
@@ -132,7 +146,7 @@ async function answerTurn(deps: TailorPipelineDeps, input: TailorPipelineInput, 
   t.set('match', 'skipped', '답변 턴에는 다시 하지 않아요');
   t.set('review', 'skipped', '답변 턴에는 다시 하지 않아요');
   t.set('draft', 'running');
-  const drafted = await t.call(signal => deps.chat.respond({ job: input.job, facts: input.facts, blocks: input.blocks, history: input.history, message, signal, call: deps.call }));
+  const drafted = await t.call(signal => deps.chat.respond({ job: input.job, facts: input.facts, blocks: input.blocks, history: input.history, message, checks: input.checks, signal, call: deps.call }));
   if (!drafted.ok) { t.set('draft', 'failed', `실패(${drafted.code})`); return { kind: 'failed', code: drafted.code, transmission: t.transmission() }; }
   if (!isChatOutput(drafted.value)) { t.set('draft', 'failed', '실패(CHAT_OUTPUT_INVALID)'); return { kind: 'failed', code: 'CHAT_OUTPUT_INVALID', transmission: t.transmission() }; }
   const output: ChatOutput = drafted.value;

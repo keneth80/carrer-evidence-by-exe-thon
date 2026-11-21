@@ -118,3 +118,9 @@
 .jd-status.missing{background:#eceff1;color:#4b5a62}
 .jd-evidence{margin:0;font-size:12px;overflow-wrap:anywhere}
 .jd-question{font-size:13px;color:#355965;display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
+.job-text-box{display:grid;gap:6px;margin:8px 0 12px;padding:10px;border:1px dashed #b9cfd1;border-radius:8px;background:#f8fbfb}
+.job-text-box.saved{border-style:solid}
+.job-text-box p{margin:0}
+.job-text-box textarea{width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:8px;border:1px solid #cfdcdd;border-radius:6px;resize:vertical}
+.job-text-box .job-content{max-height:220px;overflow:auto;margin:0;font-size:12px;white-space:pre-wrap}
+.job-text-box .row-actions{align-items:center;flex-wrap:wrap}

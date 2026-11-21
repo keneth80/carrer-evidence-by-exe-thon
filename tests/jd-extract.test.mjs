@@ -35,8 +35,8 @@ test('추출 응답 거르기: 공고 글에 그대로 있는 인용만 남기�
 });
 
 test('추출 개수는 상한까지만', () => {
-  const text = Array.from({ length: 15 }, (_, i) => `기술${i} 경험`).join(' / ');
-  const raw = { requirements: Array.from({ length: 15 }, (_, i) => ({ text: `기술${i} 경험`, importance: 'unknown', source_quote: `기술${i} 경험` })) };
+  const text = Array.from({ length: 20 }, (_, i) => `기술${i} 경험`).join(' / ');
+  const raw = { requirements: Array.from({ length: 20 }, (_, i) => ({ text: `기술${i} 경험`, importance: 'unknown', source_quote: `기술${i} 경험` })) };
   assert.equal(screenExtractedRequirements(raw, text).length, JD_LIMITS.requirements);
 });
 

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { userSentenceFor } from '../../../packages/tailor/src/user-sentence.ts';
 import { screenChanges } from '../../../packages/tailor/src/screen-changes.ts';
-import type { ChatProvider, ChatTurn } from '../../../packages/tailor/src/provider.ts';
+import type { ChatProvider, ChatRequirementCheck, ChatTurn } from '../../../packages/tailor/src/provider.ts';
 import type { TailorStageProvider } from '../../../packages/tailor/src/jd-check.ts';
 import { runTailorPipeline } from '../../../packages/tailor/src/tailor-pipeline.ts';
 import type { TailorStageKey, TailorTurn } from '../../../packages/tailor/src/tailor-pipeline.ts';
@@ -19,9 +19,9 @@ import type { LeaseDeps, LeasedTask } from './lease.ts';
 export type TailorWorkerDeps = LeaseDeps & { provider: ChatProvider; stages?: TailorStageProvider; beforeComplete?: (task: LeasedTask) => void | Promise<void> };
 export type TailorRunResult = 'idle' | 'succeeded' | 'failed' | 'lease_lost';
 type Input = { session_id: string; message_id: string | null; base_resume_revision_id: string; base_content_hash: string; chat_provider_mode?: string };
-type Job = { company_name: string; title: string; content_text: string; requirements: JobRequirement[] };
+type Job = { company_name: string; title: string; content_text: string; requirements: JobRequirement[]; content_source?: 'summary' | 'pasted' };
 type Messages = { userMessage: string | null; history: ChatTurn[]; userMessages: { id: string; content: string }[] };
-type Context = Messages & { input: Input; blocks: ResumeBlock[]; facts: FactLike[]; job: Job };
+type Context = Messages & { input: Input; blocks: ResumeBlock[]; facts: FactLike[]; job: Job; checks: ChatRequirementCheck[] };
 type Answer = { reply: string; changes: ProposedChange[]; questions: string[]; turn: TailorTurn };
 
 const newId = (prefix: string) => `${prefix}_${randomUUID().replaceAll('-', '')}`;
@@ -57,7 +57,7 @@ function loadContext(deps: TailorWorkerDeps, task: LeasedTask): Context | string
   if (input.chat_provider_mode !== undefined && input.chat_provider_mode !== deps.provider.mode) return 'PROVIDER_MODE_MISMATCH';
   const { db } = deps;
   const ws = task.workspaceId;
-  const session = db.prepare('SELECT job_snapshot_id FROM ce7_tailoring_sessions WHERE workspace_id = ? AND id = ?').get(ws, input.session_id);
+  const session = db.prepare('SELECT job_snapshot_id, job_text FROM ce7_tailoring_sessions WHERE workspace_id = ? AND id = ?').get(ws, input.session_id);
   const base = db.prepare('SELECT blocks_json, content_hash, fact_revision_id FROM ce7_resume_revisions WHERE workspace_id = ? AND id = ? AND session_id = ?').get(ws, input.base_resume_revision_id, input.session_id);
   const messages = loadMessages(deps, ws, input);
   if (!session || !base || !messages) return 'TAILOR_CONTEXT_MISSING';
@@ -67,8 +67,26 @@ function loadContext(deps: TailorWorkerDeps, task: LeasedTask): Context | string
   if (!facts || !job) return 'TAILOR_CONTEXT_MISSING';
   return {
     input, ...messages, blocks: JSON.parse(String(base.blocks_json)) as ResumeBlock[], facts: JSON.parse(String(facts.facts_json)) as FactLike[],
-    job: { company_name: String(job.company_name), title: String(job.title), content_text: String(job.content_text), requirements: JSON.parse(String(job.requirements_json)) as JobRequirement[] },
+    // 붙여넣은 공고 본문이 있으면 그 글을 쓴다. 스냅샷의 요구 목록은 요약 기준이라 비우고 본문에서 다시 읽는다(S1-28).
+    job: typeof session.job_text === 'string' && session.job_text
+      ? { company_name: String(job.company_name), title: String(job.title), content_text: session.job_text, requirements: [], content_source: 'pasted' }
+      : { company_name: String(job.company_name), title: String(job.title), content_text: String(job.content_text), requirements: JSON.parse(String(job.requirements_json)) as JobRequirement[] },
+    checks: latestChecks(deps, ws, input.session_id),
   };
+}
+
+// 가장 최근 JD 점검의 요구사항 판정. 답변 턴의 수정안 작성이 어느 요구를 겨냥할지 정하는 자료로만 쓴다.
+function latestChecks(deps: TailorWorkerDeps, ws: string, sessionId: string): ChatRequirementCheck[] {
+  const rows = deps.db.prepare("SELECT result_json FROM ce7_messages WHERE workspace_id = ? AND session_id = ? AND role = 'assistant' AND result_json IS NOT NULL ORDER BY created_at_ms DESC, rowid DESC LIMIT 20").all(ws, sessionId);
+  for (const row of rows) {
+    try {
+      const turn = JSON.parse(String(row.result_json)) as { kind?: string; requirements?: ChatRequirementCheck[] };
+      if (turn.kind === 'jd_check' && Array.isArray(turn.requirements) && turn.requirements.length > 0) {
+        return turn.requirements.map(item => ({ requirement: String(item.requirement), importance: item.importance, status: item.status, note: String(item.note ?? '') }));
+      }
+    } catch { /* 형식이 틀린 기록은 건너뛴다 */ }
+  }
+  return [];
 }
 
 // 진행 기록은 짧은 transaction으로 저장하고, lease를 잃었으면 저장하지 않는다(false → 파이프라인 중단).
@@ -96,7 +114,7 @@ export async function runTailorTask(deps: TailorWorkerDeps, taskId?: string): Pr
     report: progress => saveProgress(deps, task, context.input.session_id, progress),
     invoke: work => withHeartbeat(deps, task, work),
     call: { workspaceId: task.workspaceId, taskId: task.taskId, leaseGeneration: task.generation },
-  }, { job: context.job, facts: context.facts, blocks: context.blocks, history: context.history, message: context.userMessage, userMessages: context.userMessages });
+  }, { job: context.job, facts: context.facts, blocks: context.blocks, history: context.history, message: context.userMessage, userMessages: context.userMessages, checks: context.checks });
   if (result.kind === 'lease_lost') return 'lease_lost';
   // live: provider가 알려 준 전송 상태를 남긴다(불명이면 재시도하지 않는다). 호출이 나가지 않았으면 이전 상태를 유지한다.
   if (result.kind === 'failed') return failWith(result.code, result.transmission === 'not_dispatched' ? earlier : result.transmission);

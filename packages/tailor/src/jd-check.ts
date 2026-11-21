@@ -2,25 +2,29 @@ import { containsTerm, explainMatch } from '../../search/src/match.ts';
 import { screenExample } from './example.ts';
 import type { JobRequirement } from '../../search/src/types.ts';
 import type { ChatCallContext, ChatJob } from './provider.ts';
-import type { FactLike, ProposedChange } from './types.ts';
+import type { FactLike, ProposedChange, ResumeBlock } from './types.ts';
 
 // 공고(JD) 맞춤 점검(DECISIONS S1-18). 첫 턴은 ① 요구사항 대조(모델 없음) → ② AI 점검(질문만)이다.
 // 대조는 검색 결과 화면과 같은 연결 규칙(explainMatch)을 쓰고, 근거를 찾지 못한 요구를 '경험 없음'으로 단정하지 않는다.
 // 이 파일은 node 전용 모듈을 쓰지 않는다(웹 화면이 같은 타입을 쓴다).
 
 export type RequirementStatus = 'met' | 'weak' | 'missing';
-export type RequirementCheck = { requirement_id: string; requirement: string; importance: JobRequirement['importance']; status: RequirementStatus; fact_ids: string[]; note: string };
+// evidence·judged_by(계약 v0.7.9 선택 필드): HR 판정 단계가 고른 이력서 구절과 판정 주체. 규칙 대조만 했으면 없다.
+export type RequirementCheck = { requirement_id: string; requirement: string; importance: JobRequirement['importance']; status: RequirementStatus; fact_ids: string[]; note: string; evidence?: string | null; judged_by?: 'rule' | 'ai' };
 // example: 작성 예시(S1-22, 계약 v0.7.7 선택 필드). 확정 경력에 없는 내용은 [빈칸].
 export type JdFinding = { requirement_id: string; fact_ids: string[]; title: string; question: string; example?: string | null };
 export type JdReviewInput = { job: ChatJob; facts: FactLike[]; checks: RequirementCheck[]; signal?: AbortSignal; call?: ChatCallContext };
 export type CriticChange = { index: number; operation: ProposedChange['operation']; before: string | null; after: string | null; fact_ids: string[] };
 export type JdExtractInput = { job: ChatJob; signal?: AbortSignal; call?: ChatCallContext };
+// 근거 판정(S1-28): 요구마다 지금 이력서(blocks)와 확정 경력(facts)을 읽고 충족·근거 약함·미기재를 판정한다.
+export type JdAssessInput = { job: ChatJob; facts: FactLike[]; blocks: ResumeBlock[]; checks: RequirementCheck[]; signal?: AbortSignal; call?: ChatCallContext };
 export type JdCriticInput = { job: ChatJob; facts: FactLike[]; userMessages: { id: string; content: string }[]; changes: CriticChange[]; signal?: AbortSignal; call?: ChatCallContext };
 // ②·④ 단계 provider. 대화 수정(③)은 기존 ChatProvider.respond를 그대로 쓴다.
 // extract: 요구사항 목록이 없는 공고(실시간 검색 요약)에서 ① 단계가 요구를 뽑는다. 없으면 추출 없이 대조만 한다.
-export type TailorStageProvider = { readonly mode: 'mock' | 'live'; extract?(input: JdExtractInput): Promise<unknown>; review(input: JdReviewInput): Promise<unknown>; critic(input: JdCriticInput): Promise<unknown> };
+// assess: 규칙 대조(단어 연결) 뒤에 요구마다 근거를 다시 판정한다. 없으면 규칙 대조 결과를 그대로 쓴다.
+export type TailorStageProvider = { readonly mode: 'mock' | 'live'; extract?(input: JdExtractInput): Promise<unknown>; assess?(input: JdAssessInput): Promise<unknown>; review(input: JdReviewInput): Promise<unknown>; critic(input: JdCriticInput): Promise<unknown> };
 
-export const JD_LIMITS = { findings: 8, questions: 8, reply: 2000, title: 80, question: 400, requirements: 10, requirementText: 120 } as const;
+export const JD_LIMITS = { findings: 8, questions: 8, reply: 2000, title: 80, question: 400, requirements: 16, requirementText: 120, assessNote: 160, evidence: 200 } as const;
 // 이름만 있는 사실(기술·직무·회사·기간·지역). 나머지(업무·성과·학력·자격·기타)는 문장 근거다.
 const NAME_CATEGORIES = new Set(['skill', 'role', 'employer', 'period', 'location']);
 const isSentence = (fact: FactLike) => !NAME_CATEGORIES.has(fact.category);
@@ -46,6 +50,7 @@ export function checkRequirements(facts: FactLike[], job: Pick<ChatJob, 'title' 
   });
 }
 
+const squash = (value: string) => value.replace(/\s+/g, ' ').trim();
 const record = (value: unknown): Record<string, unknown> | null => typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const text = (value: unknown, max: number): string | null => typeof value === 'string' && value.trim() && value.length <= max ? value.trim() : null;
 
@@ -70,11 +75,38 @@ export function screenJdReview(raw: unknown, checks: RequirementCheck[], facts: 
   return { reply: value.reply.trim(), findings, questions: [...new Set(questions)].slice(0, JD_LIMITS.questions) };
 }
 
+// 근거 판정 응답을 서버가 다시 거른다(S1-28). 규칙 대조는 단어가 같을 때만 연결해, 기간으로 알 수 있는 '7년 이상'도 미기재로 냈다.
+// - 충족·근거 약함은 확정 경력에 있는 fact id와, 이력서·확정 경력에 그대로 있는 인용 구절이 모두 있어야 받아들인다. 아니면 규칙 대조 결과를 둔다.
+// - 미기재 판정은 근거 없이 받아들인다(경험 없음으로 단정하지 않는 문구는 화면·점검 단계가 지킨다). 내부 ID가 섞인 설명은 기본 문구로 바꾼다.
+const INTERNAL_ID = /\b(?:fact|blk|req|ct)_[A-Za-z0-9_]+/;
+export function screenAssessments(raw: unknown, checks: RequirementCheck[], facts: FactLike[], blocks: ResumeBlock[]): RequirementCheck[] | null {
+  const value = record(raw);
+  if (!value || !Array.isArray(value.assessments)) return null;
+  const known = new Set(facts.map(fact => fact.id));
+  const sources = squash([...facts.map(fact => fact.statement), ...blocks.map(block => block.text)].join('\n'));
+  const judged = new Map<string, Record<string, unknown>>();
+  for (const entry of value.assessments) {
+    const item = record(entry);
+    if (item && typeof item.requirement_id === 'string' && !judged.has(item.requirement_id)) judged.set(item.requirement_id, item);
+  }
+  return checks.map(check => {
+    const item = judged.get(check.requirement_id);
+    const status = item?.status;
+    if (!item || (status !== 'met' && status !== 'weak' && status !== 'missing')) return { ...check, judged_by: 'rule' as const };
+    const given = text(item.note, JD_LIMITS.assessNote);
+    const note = given && !INTERNAL_ID.test(given) ? given : NOTE[status];
+    if (status === 'missing') return { ...check, status, fact_ids: [], note, evidence: null, judged_by: 'ai' as const };
+    const factIds = Array.isArray(item.fact_ids) ? [...new Set(item.fact_ids.filter((id): id is string => typeof id === 'string' && known.has(id)))] : [];
+    const quote = typeof item.evidence_quote === 'string' ? squash(item.evidence_quote) : '';
+    if (factIds.length === 0 || quote.length < 2 || quote.length > JD_LIMITS.evidence || !sources.includes(quote)) return { ...check, judged_by: 'rule' as const };
+    return { ...check, status, fact_ids: factIds, note, evidence: quote, judged_by: 'ai' as const };
+  });
+}
+
 // ① 추출 응답을 서버가 다시 거른다(품질 검증 2026-11-20: 실시간 검색 공고는 requirements=[]).
 // - source_quote는 공고 글에 그대로 있어야 한다(띄어쓰기 차이만 허용). 지어낸 인용은 뺀다.
 // - text의 영문 기술명·숫자는 인용에 있어야 한다(요구를 키우거나 바꾸지 않게).
 // - 중요도는 인용에 '필수'·'우대'가 있으면 그것을 따른다. id는 서버가 붙인다. 형식이 틀리면 null(닫힌 쪽).
-const squash = (value: string) => value.replace(/\s+/g, ' ').trim();
 const TEXT_TOKENS = /\d+(?:\.\d+)?|[A-Za-z][A-Za-z0-9.+#-]*/g;
 function importanceOf(quote: string, given: unknown): JobRequirement['importance'] {
   if (/필수|자격\s*요건|required/i.test(quote)) return 'required';
@@ -120,8 +152,9 @@ function mockVerdict(change: CriticChange, sources: string): { index: number; ve
 // mock 추출: 글머리표·줄 단위 구절 중 요구 표현(경험·필수·우대·이상 등)이 있는 것만 그대로 인용한다.
 const REQUIREMENT_SIGNAL = /경험|필수|우대|이상|능숙|역량|자격|이해|가능하신/;
 function mockExtract(contentText: string) {
-  const parts = contentText.split(/\n|[✓✔•▶■◦●]|\s-\s|\.\s/).map(squash).filter(part => part.length >= 4 && part.length <= JD_LIMITS.requirementText);
-  const requirements = parts.filter(part => REQUIREMENT_SIGNAL.test(part) && !/#|D-\d/.test(part)).map(part => ({ text: part, importance: 'unknown', source_quote: part }));
+  // 붙여넣은 본문(S1-28)은 줄 앞 글머리표('- ')와 구역 제목(자격 요건·우대 사항)이 있다. 제목 줄은 요구가 아니다.
+  const parts = contentText.split(/\n|[✓✔•▶■◦●]|\s-\s|\.\s/).map(part => squash(part).replace(/^[-*·]\s*/, '')).filter(part => part.length >= 4 && part.length <= JD_LIMITS.requirementText);
+  const requirements = parts.filter(part => REQUIREMENT_SIGNAL.test(part) && !/#|D-\d/.test(part) && !/^(자격\s*요건|우대\s*사항|필수\s*요건|주요\s*업무|담당\s*업무)$/.test(part)).map(part => ({ text: part, importance: 'unknown', source_quote: part }));
   return { requirements };
 }
 

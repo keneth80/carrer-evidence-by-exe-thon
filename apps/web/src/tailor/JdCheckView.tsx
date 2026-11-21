@@ -25,8 +25,14 @@ export function JdCheckView({ turn, facts, busy, onAnswer }: Props) {
           <span className="tag">{IMPORTANCE[item.importance]}</span>
           <span className="jd-req">{item.requirement}</span>
         </div>
-        {evidence.length > 0 ? <p className="jd-evidence">근거: {evidence.map(text => `“${text}”`).join(', ')}</p> : <p className="jd-evidence muted">{item.note}</p>}
-        {evidence.length > 0 && item.status === 'weak' && <p className="jd-evidence muted">{item.note}</p>}
+        {/* HR 근거 판정(S1-28): 서버가 이력서와 대조한 인용 구절 하나와 검토 의견을 보여 준다. 규칙 대조만 했으면 연결된 경력 문장을 보여 준다. */}
+        {item.judged_by === 'ai' ? <>
+          {item.evidence && <p className="jd-evidence">근거: “{item.evidence}”</p>}
+          <p className="jd-evidence muted"><span className="tag">HR 판정</span> {item.note}</p>
+        </> : <>
+          {evidence.length > 0 ? <p className="jd-evidence">근거: {evidence.map(text => `“${text}”`).join(', ')}</p> : <p className="jd-evidence muted">{item.note}</p>}
+          {evidence.length > 0 && item.status === 'weak' && <p className="jd-evidence muted">{item.note}</p>}
+        </>}
         {finding && <div className="jd-question">질문: {finding.question}
           <button type="button" className="ghost" disabled={busy} onClick={() => onAnswer(`‘${item.requirement}’ 관련: `)}>이 요구에 답하기</button></div>}
         {finding?.example && <ExampleBox text={finding.example} onUse={busy ? undefined : () => onAnswer(`‘${item.requirement}’ 관련: ${finding.example}`)} />}
