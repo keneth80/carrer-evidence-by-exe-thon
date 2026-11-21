@@ -52,7 +52,7 @@ export function JobCard({ job, explanation, selected, onSelect }: { job: JobSnap
     {isLive(job)
       ? <p className="fine-print">검색 {new Date(job.observed_at).toLocaleString('ko-KR')} · 출처 <a href={job.canonical_url} target="_blank" rel="noreferrer noopener">{job.site_id}</a> · 검색 요약만 확인(원문 확인 필요)</p>
       : <p className="fine-print">확인 {new Date(job.observed_at).toLocaleString('ko-KR')} · 출처 {job.site_id}</p>}
-    <button className="outline" aria-pressed={selected} aria-controls="job-detail" onClick={onSelect}>상세 비교 보기 <span aria-hidden="true">↗</span></button>
+    <button className="outline" aria-pressed={selected} aria-controls="job-detail" onClick={onSelect}>{selected ? '상세 비교 닫기' : '상세 비교 보기'} <span aria-hidden="true">{selected ? '↑' : '↓'}</span></button>
   </article>;
 }
 
@@ -61,7 +61,7 @@ export function JobDetail({ job, explanation, facts, onTailor, tailoring }: { jo
   const linked = new Map(explanation.reasons.map(reason => [reason.requirement_id, reason]));
   const usedFacts = new Set(explanation.reasons.flatMap(reason => reason.fact_ids));
   return <section id="job-detail" className="evidence" aria-labelledby="job-detail-title">
-    <div className="evidence-heading"><div><span className="small-label">공고 상세 · 경력 비교</span><h2 id="job-detail-title">{job.company_name} · {job.title}</h2></div>
+    <div className="evidence-heading"><div><span className="small-label">공고 상세 · 경력 비교</span><h2 id="job-detail-title" tabIndex={-1}>{job.company_name} · {job.title}</h2></div>
       <span className="pill">{job.data_origin === 'synthetic' ? '합성 출처' : 'Liner 웹 검색 · 원문 확인 필요'}</span></div>
     <div className="compare-grid">
       <div>

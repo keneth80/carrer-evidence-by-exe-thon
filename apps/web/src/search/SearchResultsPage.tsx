@@ -101,6 +101,14 @@ export function SearchResultsPage({ searchId }: { searchId: string }) {
     const timer = window.setTimeout(refresh, delay);
     return () => window.clearTimeout(timer);
   }, [active, data, failures, polls, refresh]);
+  // 사용자 테스트(2026-11-21): 상세 비교는 공고 목록 아래에 열려 화면 밖이라 눌러도 반응이 없는 것처럼 보였다.
+  // 고른 공고의 상세로 스크롤하고 제목에 초점을 옮겨 '이 공고에 맞춰 이력서 수정'까지 이어지게 한다.
+  useEffect(() => {
+    if (!selected) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    document.getElementById('job-detail')?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    document.getElementById('job-detail-title')?.focus({ preventScroll: true });
+  }, [selected]);
   const retry = () => { setFailures(0); setPolls(0); refresh(); };
 
   if (error && !data) return <div role="alert" className="error">{error} {failures > 5 && <button className="outline small" onClick={retry}>다시 시도</button>}</div>;

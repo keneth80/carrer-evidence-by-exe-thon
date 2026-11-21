@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import mammoth from 'mammoth';
 import JSZip from 'jszip';
-import { resumeDocx, resumeDocxLines, DOCX_FILENAME } from '../packages/render/src/resume-docx.ts';
+import { resumeDocx, resumeDocxLines, DOCX_FILENAME, tailoredDocx, tailoredDocxLines, TAILORED_DOCX_FILENAME } from '../packages/render/src/resume-docx.ts';
+import { applyChanges, baseBlocks } from '../packages/tailor/src/blocks.ts';
 import { storeZip, crc32 } from '../packages/render/src/zip.ts';
 
 // 사용자 요청(2026-11-20): 보완한 기본 이력서(확정 경력 최신 버전)를 Word(.docx)로 내려받아 이름·연락처를 직접 넣는다.
@@ -82,4 +83,30 @@ test('회사 바로 뒤가 아니어도 같은 회사 구간의 첫 기간을 �
 
 test('파일 이름은 버전 번호를 붙인다', () => {
   assert.equal(DOCX_FILENAME(7), '기본이력서_v7.docx');
+});
+
+// 사용자 요청(2026-11-21): 공고별 이력서도 고칠 수 있게 Word로 내려받는다. 미리보기·PDF와 같은 회사별 배치를 쓴다.
+test('공고별 이력서 Word: 핵심 요약 → 회사(·기간) 아래 직무·업무·성과, 맞춤 수정 문장이 들어가고 Word로 열린다', async () => {
+  const blocks = baseBlocks(FACTS);
+  const target = blocks.find(block => block.id === 'blk_d2');
+  const applied = applyChanges(blocks, [
+    { operation: 'replace', block_id: 'blk_d2', before: target.text, after: '주문 목록·상세 화면을 개발했습니다.', fact_ids: ['d2'], reason: 'x', needs_fact_confirmation: false },
+    { operation: 'insert', block_id: 'blk_new', before: null, after: '결제·정산 화면을 React로 만든 프론트엔드 개발자입니다.', fact_ids: ['o1', 'd1'], reason: 'x', needs_fact_confirmation: false },
+  ]);
+  assert.ok(applied.ok);
+  const lines = tailoredDocxLines(applied.blocks, FACTS);
+  assert.deepEqual(lines.slice(0, 4).map(line => `${line.style}:${line.text}`), ['Title:[이름]', 'Contact:[이메일] · [전화번호]', 'Heading1:핵심 요약', 'Bullet:결제·정산 화면을 React로 만든 프론트엔드 개발자입니다.']);
+  const career = lines.slice(lines.findIndex(line => line.text === '경력' && line.style === 'Heading1') + 1, lines.findIndex(line => line.text === '학력'));
+  assert.deepEqual(career.map(line => `${line.style}:${line.text}`), [
+    'Heading2:예시페이 · 2021.03 ~ 재직 중', 'Role:프론트엔드 개발자', 'Bullet:정산 화면을 React로 개발했습니다.', 'Bullet:배포 시간을 30분에서 5분으로 줄였습니다.',
+    'Heading2:예시커머스 & <파트너스> · 2018.01 ~ 2021.02', 'Bullet:주문 목록·상세 화면을 개발했습니다.',
+  ]);
+  const { value } = await mammoth.convertToHtml({ buffer: Buffer.from(tailoredDocx(applied.blocks, FACTS)) });
+  assert.match(value, /<h2>예시커머스 &amp; &lt;파트너스&gt; · 2018\.01 ~ 2021\.02<\/h2>/);
+  assert.match(value, /주문 목록·상세 화면을 개발했습니다\./);
+});
+
+test('공고별 이력서 Word 파일 이름: 회사 이름의 파일명 금지 문자를 빼고 버전을 붙인다', () => {
+  assert.equal(TAILORED_DOCX_FILENAME('예시 (주)/파트너스: "AI"', 3), '맞춤이력서_예시_(주)_파트너스_AI_v3.docx');
+  assert.equal(TAILORED_DOCX_FILENAME('***', 1), '맞춤이력서_공고_v1.docx');
 });

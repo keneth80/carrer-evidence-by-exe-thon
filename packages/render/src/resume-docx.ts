@@ -1,4 +1,7 @@
 import { storeZip } from './zip.ts';
+import { resumeLayout } from '../../tailor/src/layout.ts';
+import { sectionLabel } from '../../tailor/src/types.ts';
+import type { FactLike, ResumeBlock } from '../../tailor/src/types.ts';
 
 // 기본 이력서 Word(.docx) 내려받기(사용자 요청 2026-11-20, DECISIONS S1-23).
 // 확정 경력 최신 버전의 문장을 원래 순서대로 그대로 넣는다(새 문장·수치를 만들지 않는다). 맞춤 수정은 공고별 최종본에서만 한다.
@@ -10,6 +13,9 @@ export type DocxStyle = 'Title' | 'Contact' | 'Heading1' | 'Heading2' | 'Role' |
 export type DocxLine = { style: DocxStyle; text: string };
 
 export const DOCX_FILENAME = (revision: number) => `기본이력서_v${revision}.docx`;
+// 파일 이름에 쓸 수 없는 문자(\ / : * ? " < > | 제어 문자)는 빼고 길이를 줄인다.
+const fileSafe = (text: string) => text.replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ').replace(/\s+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || '공고';
+export const TAILORED_DOCX_FILENAME = (company: string, revision: number) => `맞춤이력서_${fileSafe(company)}_v${revision}.docx`;
 const PLACEHOLDERS: DocxLine[] = [{ style: 'Title', text: '[이름]' }, { style: 'Contact', text: '[이메일] · [전화번호]' }];
 
 type Group = '요약' | '경력' | '기술' | '학력' | '자격' | '기타';
@@ -62,6 +68,23 @@ export function resumeDocxLines(facts: FactText[]): DocxLine[] {
   return lines;
 }
 
+// 공고별 이력서 Word(사용자 요청 2026-11-21: "수정할 수 있도록 doc 파일로도"). 미리보기·PDF와 같은 회사별 배치(layout.ts)를 쓴다.
+// 제출 파일은 확정 PDF이고, Word에서 고친 내용은 앱으로 돌아오지 않는다(화면 안내). 이름·연락처는 기본 이력서와 같이 [빈칸].
+export function tailoredDocxLines(blocks: ResumeBlock[], facts: FactLike[]): DocxLine[] {
+  const lines: DocxLine[] = [...PLACEHOLDERS];
+  for (const section of resumeLayout(blocks, facts)) {
+    lines.push({ style: 'Heading1', text: sectionLabel(section.section) });
+    for (const block of section.blocks) lines.push({ style: section.section === '기술' ? 'Body' : 'Bullet', text: block.text });
+    for (const employer of section.employers) {
+      lines.push({ style: 'Heading2', text: employer.title });
+      const sub = employer.items.filter(item => item.kind === 'role' || item.kind === 'period');
+      for (const item of sub) lines.push({ style: 'Role', text: item.block.text });
+      for (const item of employer.items) if (!sub.includes(item)) lines.push({ style: 'Bullet', text: item.block.text });
+    }
+  }
+  return lines;
+}
+
 // XML 1.0에 쓸 수 없는 제어 문자는 뺀다(탭·줄바꿈은 유지).
 const clean = (text: string) => text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f￾￿]/g, '');
 const escape = (text: string) => clean(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -96,7 +119,15 @@ const DOC_RELS = `${XML}<Relationships xmlns="http://schemas.openxmlformats.org/
 const SECTION = '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr>';
 
 export function resumeDocx(facts: FactText[]): Uint8Array {
-  const body = resumeDocxLines(facts).map(paragraph).join('');
+  return docxFromLines(resumeDocxLines(facts));
+}
+
+export function tailoredDocx(blocks: ResumeBlock[], facts: FactLike[]): Uint8Array {
+  return docxFromLines(tailoredDocxLines(blocks, facts));
+}
+
+function docxFromLines(lines: DocxLine[]): Uint8Array {
+  const body = lines.map(paragraph).join('');
   const encoder = new TextEncoder();
   return storeZip([
     { name: '[Content_Types].xml', data: encoder.encode(CONTENT_TYPES) },

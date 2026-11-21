@@ -61,7 +61,16 @@ test('직무별 문장 패턴(S4-15): 직무군 선택, 나은 예시는 안티�
   assert.equal(roleFamilyOf(['시니어 프론트엔드 엔지니어', 'React']), 'frontend');
   assert.equal(roleFamilyOf(['백엔드 개발자', 'Python', 'FastAPI']), 'backend');
   assert.equal(roleFamilyOf(['프로덕트 디자이너']), 'design');
-  assert.equal(roleFamilyOf(['회계 담당']), 'general');
+  // 2026-11-21: 재무·회계 직군을 더해 '회계 담당'은 finance다. 어느 직군 신호도 없으면 공통.
+  assert.equal(roleFamilyOf(['회계 담당']), 'finance');
+  assert.equal(roleFamilyOf(['총무 담당']), 'general');
+  assert.equal(roleFamilyOf(['퍼포먼스 마케터', '광고 운영']), 'marketing');
+  assert.equal(roleFamilyOf(['법인 영업']), 'sales');
+  assert.equal(roleFamilyOf(['HRBP', '조직문화']), 'hr');
+  assert.equal(roleFamilyOf(['CS 매니저', '고객 상담']), 'operations');
+  assert.equal(roleFamilyOf(['데이터 인사이트 분석가']), 'data', "'인사이트' is not HR");
+  assert.equal(roleFamilyOf(['Backend Engineer (7년 이상) 채용', '백엔드 개발자']), 'backend', "'채용' in a job title is not HR");
+  for (const patterns of Object.values(ROLE_PATTERNS)) assert.ok((patterns.focus ?? []).length >= 2, `${patterns.family} has reviewer focus`);
   for (const patterns of Object.values(ROLE_PATTERNS)) {
     assert.ok(patterns.examples.length >= 2, patterns.family);
     for (const example of patterns.examples) {
@@ -73,6 +82,7 @@ test('직무별 문장 패턴(S4-15): 직무군 선택, 나은 예시는 안티�
   const text = patternGuidance(patternsFor(['프론트엔드 개발자']));
   assert.match(text, /형식만 참고/);
   assert.match(text, /프론트엔드/);
+  assert.match(patternGuidance(patternsFor(['법인 영업'])), /서류 검토자가 이 직군에서 확인하는 것[\s\S]*달성률/);
 });
 
 test('평가어 활용형(뛰어납니다·탁월합니다·우수합니다)도 찾는다', () => {

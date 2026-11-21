@@ -5,6 +5,7 @@ import { navigate } from '../router.ts';
 import { loadTailor, renderInProgress, replyState, statementConfirmed } from './data.ts';
 import type { TailorData } from './data.ts';
 import { ResumePreview } from './ResumePreview.tsx';
+import { downloadTailoredDocx } from '../resume/download-docx.ts';
 import { ApplyEntry } from '../apply/ApplyEntry.tsx';
 
 // U05 최종 제출본 확인: 현재 버전을 직접 확인해 확정하고, 실제 PDF를 만들어 미리보기·내려받기한다.
@@ -124,7 +125,8 @@ export function FinalPage({ sessionId }: { sessionId: string }) {
     {revision.state === 'draft' ? <section className="panel" aria-labelledby="draft-title">
       <h2 id="draft-title">확정 전 내용 확인</h2>
       <p className="muted">아래 내용 그대로 PDF를 만듭니다. 확정한 버전은 바꿀 수 없고, 이후 수정은 새 버전으로 저장됩니다.</p>
-      <ResumePreview blocks={revision.blocks} facts={[...facts, ...(head?.facts ?? [])]} />
+      <ResumePreview blocks={revision.blocks} facts={[...facts, ...(head?.facts ?? [])]} order={facts} />
+      <div className="row-actions"><button className="outline small" title="이름·연락처는 맨 위 [ ] 칸에 Word에서 직접 넣어 주세요. Word에서 고친 내용은 이 화면으로 돌아오지 않아요. 이 브라우저에서 만들며 서버로 보내지 않아요." onClick={() => downloadTailoredDocx(revision.blocks, facts, job.company_name, revision.revision)}>Word로 내려받기</button></div>
       <label className="check confirm-check"><input type="checkbox" checked={reviewed} onChange={event => setReviewedHash(event.target.checked ? revision.content_hash : null)} />위 내용을 직접 확인했습니다.</label>
       <div className="action-row"><button className="primary" disabled={!reviewed || busy || waiting} onClick={finalize}>{busy ? '확정 중…' : '이 버전으로 확정'}</button></div>
     </section> : <section className="panel" aria-labelledby="pdf-title">
@@ -144,6 +146,7 @@ export function FinalPage({ sessionId }: { sessionId: string }) {
         <div className="action-row">
           <a className="outline small" href={`${artifact.download_path}?download=1`}>PDF 내려받기</a>
           <a className="outline small" href={artifact.download_path} target="_blank" rel="noreferrer">새 창에서 열기</a>
+          <button className="outline small" title="이름·연락처는 맨 위 [ ] 칸에 Word에서 직접 넣어 주세요. Word에서 고친 내용은 이 화면으로 돌아오지 않아요. 이 브라우저에서 만들며 서버로 보내지 않아요." onClick={() => downloadTailoredDocx(revision.blocks, facts, job.company_name, revision.revision)}>Word로 내려받기</button>
         </div>
         <iframe className="pdf-frame" title="제출 PDF 미리보기" src={artifact.download_path} />
       </>}

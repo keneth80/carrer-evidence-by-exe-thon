@@ -60,6 +60,13 @@
 .resume-preview li.linked{background:#ffe8a3}
 .resume-preview li.changed{background:#eef8f1}
 .resume-preview .tag{margin-left:6px}
+.resume-preview .employer{display:grid;gap:4px;margin:4px 0 10px}
+.resume-preview h4{font-size:13px;margin:6px 0 0;color:#1f2b2d}
+.resume-preview h4.linked{background:#ffe8a3}
+.resume-preview h4.changed{background:#eef8f1}
+.resume-preview .employer-role{margin:0;color:#5c6b6d}
+.resume-preview .employer-role.changed{background:#eef8f1}
+.resume-preview .tag.result{margin:0 6px 0 0;background:#e6f0fb;color:#24527a}
 .history{margin-top:12px;font-size:12px}
 .history summary{cursor:pointer;font-weight:650;color:#256d66}
 .history ul{list-style:none;padding:0;margin:6px 0 0;display:grid;gap:4px}

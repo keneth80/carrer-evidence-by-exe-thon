@@ -1,5 +1,6 @@
 import { EXAMPLE_RULE, FINDING_PROMPT_ITEMS, HR_CRITERIA, HR_PERSONA, HR_REVIEW_GUIDE, TITLE_TONE_RULE } from './persona.ts';
 import { JD_LIMITS } from '../../tailor/src/jd-check.ts';
+import { patternGuidance, patternsFor } from '../../tailor/src/patterns.ts';
 import type { JdCriticInput, JdExtractInput, JdReviewInput, TailorStageProvider } from '../../tailor/src/jd-check.ts';
 import { callLinerJson, LINER_CHAT_MODEL, MAX_COMPLETION_TOKENS, REVIEW_MAX_COMPLETION_TOKENS, redactPersonal } from './chat.ts';
 import type { LinerChatDeps } from './chat.ts';
@@ -96,7 +97,8 @@ export function buildJdReviewRequest(input: Omit<JdReviewInput, 'signal' | 'call
     model: LINER_CHAT_MODEL, routing_strategy: routing, max_completion_tokens: REVIEW_MAX_COMPLETION_TOKENS,
     response_format: { type: 'json_schema', json_schema: { name: 'jd_check_review', strict: true, schema: JD_REVIEW_SCHEMA } },
     messages: [
-      { role: 'system', content: REVIEW_PROMPT },
+      // 직군 기준(공고 제목 + 확정 경력의 직무): 직군마다 서류 검토자가 보는 지표가 다르다(DECISIONS S1-26).
+      { role: 'system', content: `${REVIEW_PROMPT}\n${patternGuidance(patternsFor([input.job.title, ...input.facts.filter(fact => fact.category === 'role').map(fact => fact.statement)]))}` },
       { role: 'user', content: `오늘 날짜(기준일): ${today.toISOString().slice(0, 10)}\n공고(JSON):\n${JSON.stringify(jobOf(input))}\n확정 경력(JSON):\n${JSON.stringify({ facts })}\n요구사항 대조(JSON):\n${JSON.stringify({ checks })}` },
     ],
   };

@@ -131,7 +131,7 @@ test('PDF renderer: Korean text, wrapping, page breaks, deterministic bytes; fil
   const hash = bytes => createHash('sha256').update(bytes).digest('hex');
   assert.equal(hash(first.bytes), hash(second.bytes), 'same input renders identical bytes');
   assert.ok(first.pageCount >= 2, 'long resume spans pages');
-  assert.match(first.renderVersion, /^resume-pdf\.v2/);
+  assert.match(first.renderVersion, /^resume-pdf\.v3/);
   // 텍스트 추출과 별개로, 그린 글리프마다 임베딩 글꼴에 윤곽선이 있어야 화면에 보인다(서브셋 결함 회귀 방지).
   const glyphs = glyphReport(first.bytes);
   assert.equal(glyphs.fonts, 1);

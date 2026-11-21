@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { RenderGlyphError, renderResumePdf } from '../../../packages/render/src/resume-pdf.ts';
-import type { ResumeBlock } from '../../../packages/tailor/src/types.ts';
+import type { FactLike, ResumeBlock } from '../../../packages/tailor/src/types.ts';
 import type { ObjectStore } from '../../api/src/resume/storage.ts';
 import { claimTask, completeTask, failTask, holdsLease, inTransaction, MAX_ATTEMPTS, withHeartbeat } from './lease.ts';
 import type { LeaseDeps } from './lease.ts';
@@ -29,8 +29,10 @@ export async function runRenderTask(deps: RenderWorkerDeps, taskId?: string): Pr
   let input: { resume_revision_id: string; content_hash: string };
   try { input = JSON.parse(task.inputJson); } catch { return failWith('TASK_INPUT_INVALID'); }
   const ws = task.workspaceId;
-  const revision = deps.db.prepare(`SELECT r.blocks_json, r.content_hash, r.state, r.finalized_at_ms, r.revision, j.company_name, j.title
+  // 회사별 배치(layout.ts)는 확정 경력의 순서·종류로 블록을 묶는다. 사실은 블록 근거와 같은 확정 경력 버전에서 읽는다.
+  const revision = deps.db.prepare(`SELECT r.blocks_json, r.content_hash, r.state, r.finalized_at_ms, r.revision, j.company_name, j.title, f.facts_json
     FROM ce7_resume_revisions r JOIN ce7_job_snapshots j ON j.workspace_id = r.workspace_id AND j.id = r.job_snapshot_id
+    LEFT JOIN ce7_fact_revisions f ON f.workspace_id = r.workspace_id AND f.id = r.fact_revision_id
     WHERE r.workspace_id = ? AND r.id = ?`).get(ws, input.resume_revision_id);
   if (!revision) return failWith('RESUME_REVISION_MISSING');
   // 확정 시점 내용과 같은 revision만 렌더한다. 확정 미리보기와 PDF의 content hash가 같아야 한다.
@@ -38,7 +40,8 @@ export async function runRenderTask(deps: RenderWorkerDeps, taskId?: string): Pr
 
   let rendered;
   try {
-    rendered = await withHeartbeat(deps, task, () => renderResumePdf({ blocks: JSON.parse(String(revision.blocks_json)) as ResumeBlock[], title: '이력서', finalizedAt: new Date(Number(revision.finalized_at_ms)) }));
+    rendered = await withHeartbeat(deps, task, () => renderResumePdf({ blocks: JSON.parse(String(revision.blocks_json)) as ResumeBlock[], title: '이력서', finalizedAt: new Date(Number(revision.finalized_at_ms)),
+      facts: revision.facts_json ? JSON.parse(String(revision.facts_json)) as FactLike[] : [] }));
   } catch (error) {
     return failWith(error instanceof RenderGlyphError ? 'RENDER_GLYPH_MISSING' : 'RENDER_FAILED');
   }
