@@ -17,6 +17,8 @@ export type SourceLine = { s: number; page: number | null; start: number; end: n
 export type StructureProvider = { compose(input: { lines: SourceLine[]; call: StructureCall; signal?: AbortSignal }): Promise<ComposeOutput> };
 export type ComposeResult = { facts: ResumeFact[]; unused: SourceLine[] };
 
+// 모델이 항목에 넣지 않은 줄의 경고 문구. 화면이 구역 제목을 찾을 때 이 문구로 알아본다(sections.ts).
+export const UNUSED_NOTE = 'AI가 항목으로 넣지 않은 줄';
 export const MASKED_LINE = '[개인정보로 보여 가린 줄]';
 const HEADER_NOTE = '머리글';
 const MAX_FACTS = 300; // 확정 요청 한도(confirm.ts FACT_LIMITS.maxFacts)와 같다. confirm.ts는 node:crypto를 써서 여기서 import하지 않는다.
@@ -47,7 +49,7 @@ export function composeFacts(source: SourceText, lines: SourceLine[], output: un
   if (!Array.isArray(items)) return null;
   const inRange = (n: unknown): n is number => Number.isInteger(n) && (n as number) >= 0 && (n as number) < lines.length;
   const whole = new Set<number>();            // 줄 전체를 쓴 줄
-  const cursor = new Map<number, number>();   // 일부만 쓴 줄: 다음 조각을 찾기 시작할 위치(UTF-16)
+  const cursor = new Map<number, [number, number][]>();   // 일부만 쓴 줄: 이미 쓴 구간들(UTF-16)
   const facts: ResumeFact[] = [];
   for (const item of items) {
     if (facts.length >= MAX_FACTS) break;
@@ -61,9 +63,13 @@ export function composeFacts(source: SourceText, lines: SourceLine[], output: un
     if (typeof item.text === 'string' && item.text.trim() && item.text.trim() !== first.text) {
       // 한 줄의 일부(표 한 줄에 붙은 회사·직함·기간 등). 그 줄에 순서대로, 글자 그대로 있어야 한다.
       const part = item.text.trim();
-      const at = span.length === 1 ? first.text.indexOf(part, cursor.get(first.s) ?? 0) : -1;
+      // 조각의 순서는 묻지 않는다. 원문이 '기간 회사 직함' 순서인데 모델은 회사 → 직함 → 기간 순으로 내므로,
+      // 앞에서부터만 찾으면 기간 조각이 버려졌다(실호출 관찰 2026-11-21: 회사 12곳 중 기간 6개). 이미 쓴 구간과 겹치지 않는 첫 위치를 쓴다.
+      const used = cursor.get(first.s) ?? [];
+      let at = span.length === 1 ? first.text.indexOf(part) : -1;
+      while (at !== -1 && used.some(([from, to]) => at < to && from < at + part.length)) at = first.text.indexOf(part, at + 1);
       if (at === -1) continue;
-      cursor.set(first.s, at + part.length);
+      cursor.set(first.s, [...used, [at, at + part.length]]);
       start = first.start + codePointLength(first.text.slice(0, at));
       end = start + codePointLength(part);
       statement = part;

@@ -13,7 +13,8 @@ const SECTION_TITLE: Record<string, string> = { skill: '기술', education: '학
 const SPAN_BREAK = new Set(['education', 'certification']);
 const META_ORDER = ['employer', 'role', 'period', 'location'];
 
-export function factGroups(facts: FactLike[]): FactGroup[] {
+// sections: 항목마다 원문에서 바로 앞에 있던 구역 제목(없으면 null). 회사·프로젝트·기술·학력에 속하지 않는 항목을 한 묶음에 몰지 않고 제목별로 나눈다(S1-33).
+export function factGroups(facts: FactLike[], sections: (string | null)[] = []): FactGroup[] {
   const employers = facts.flatMap((fact, at) => fact.category === 'employer' ? [at] : []);
   const periods = employerPeriods(facts);
   const periodOwner = new Map([...periods].map(([employer, period]) => [period, employer]));
@@ -30,12 +31,16 @@ export function factGroups(facts: FactLike[]): FactGroup[] {
     const owner = periodOwner.get(at);
     if (owner !== undefined) return employerGroup(owner);
     if (SECTION_TITLE[category]) return { key: `section:${category}`, kind: 'section', title: SECTION_TITLE[category] };
+    // 마지막 회사·프로젝트 뒤에 오는 '일하는 방식' 같은 글이 그 회사 묶음에 딸려 들어가지 않게 한다:
+    // 분류가 기타이고 원문에서 다른 구역 제목 아래에 있던 항목은 회사·프로젝트 묶음에서 떼어 제목별 묶음으로 보낸다.
+    const detached = (anchor: number) => category === 'other' && !!sections[at] && sections[at] !== sections[anchor];
     if (projects && category !== 'employer' && at >= projects.start && at < projects.end) {
       const head = projects.heads.filter(start => start <= at).at(-1)!;
-      return { key: `project:${head}`, kind: 'project', title: facts[head].statement };
+      if (!detached(head)) return { key: `project:${head}`, kind: 'project', title: facts[head].statement };
     }
     const employer = employerOf(at);
-    if (employer !== null) return employerGroup(employer);
+    if (employer !== null && !detached(employer)) return employerGroup(employer);
+    if (sections[at]) return { key: `titled:${sections[at]}`, kind: 'section', title: sections[at]! };
     if (employers.length > 0 && at < employers[0]) {
       return category === 'achievement' ? { key: 'results', kind: 'results', title: KEY_RESULTS_SECTION } : { key: 'basic', kind: 'basic', title: '기본 정보·소개' };
     }

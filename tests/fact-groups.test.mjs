@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { factGroups } from '../packages/tailor/src/fact-groups.ts';
-import { composeFacts, MASKED_LINE, sourceLines } from '../packages/resume/src/structure.ts';
+import { sectionTitles } from '../packages/resume/src/sections.ts';
+import { composeFacts, MASKED_LINE, sourceLines, UNUSED_NOTE } from '../packages/resume/src/structure.ts';
 import { extractionStep } from '../apps/web/src/resume/extraction-step.ts';
 import { buildStructureRequest, parseComposeLines, STRUCTURE_SCHEMA } from '../packages/liner/src/structure.ts';
 
@@ -92,6 +93,9 @@ test('items are source line ranges: card fragments and wrapped sentences join, a
     assert.equal(evidence.quote.replace(/\s+/g, ''), fact.statement.replace(/\s+/g, ''));
   }
   assert.deepEqual(result.facts.map(fact => fact.id), ['fact_001', 'fact_002', 'fact_003', 'fact_004', 'fact_005']);
+  // 조각 순서가 원문과 달라도(회사 → 기간 → 직함) 모두 살리고, 같은 글자를 두 번 쓰지는 못한다.
+  const reordered = composeFacts(SOURCE, LINES, { items: [item(3, 5, 'achievement'), item(8, 9, 'achievement'), item(7, 7, 'period', '2020.01 ~ 2023.02'), item(7, 7, 'employer', '예시랩'), item(7, 7, 'role', '프론트엔드 리드'), item(7, 7, 'other', '예시랩')] }, 'doc_1');
+  assert.deepEqual(reordered.facts.slice(2).map(fact => [fact.category, fact.statement]), [['period', '2020.01 ~ 2023.02'], ['employer', '예시랩'], ['role', '프론트엔드 리드']]);
   // 제목·쪽 번호처럼 넣지 않은 줄은 버리지 않고 돌려준다(화면에서 다시 넣을 수 있다).
   assert.deepEqual(result.unused.map(line => line.text), ['대표 성과', '경력사항', '- 1 / 1 -']);
 });
@@ -115,4 +119,21 @@ test('unusable model output is rejected so the caller keeps the rule result', ()
 test('extraction progress step follows the real task state', () => {
   const step = (state, provider_transmission) => extractionStep({ state, provider_transmission });
   assert.deepEqual([extractionStep(null), step('queued', 'not_dispatched'), step('running', 'not_dispatched'), step('running', 'dispatched'), step('running', 'completed'), step('running', 'unknown'), step('running', undefined)], [0, 0, 0, 1, 2, 2, 0]);
+});
+
+// 구역 제목으로 나누기(S1-33): 모델이 뺀 제목 줄을 찾아, 회사·프로젝트에 속하지 않는 '기타' 항목을 제목별 묶음으로 보여 준다.
+test('other items are grouped under the source heading above them instead of one catch-all group', () => {
+  const text = ['경력사항', '예시랩', '결제 화면을 만들었습니다.', '- 1 / 2 -', '[ 업무 접근 방식 ]', '문제를 먼저 정의합니다.', '작게 나눠 확인합니다.', '강점', '꾸준히 기록합니다.'].join('\n');
+  const source = { input_kind: 'pasted_text', pages: [{ page: null, text }] };
+  const spot = quote => Array.from(text.slice(0, text.indexOf(quote))).length;
+  const make = (id, category, quote) => ({ id, category, statement: quote, evidence: [{ kind: 'document', document_id: 'd', page: null, start: spot(quote), end: spot(quote) + Array.from(quote).length, quote }] });
+  const unused = quote => `UNCLASSIFIED_LINE@text:${spot(quote)}-${spot(quote) + Array.from(quote).length} ${UNUSED_NOTE}입니다(제목·장식 등).`;
+  const facts = [make('e', 'employer', '예시랩'), make('r', 'responsibility', '결제 화면을 만들었습니다.'), make('a', 'other', '문제를 먼저 정의합니다.'), make('b', 'other', '작게 나눠 확인합니다.'), make('c', 'other', '꾸준히 기록합니다.')];
+  const warnings = [unused('경력사항'), unused('- 1 / 2 -'), unused('[ 업무 접근 방식 ]'), unused('강점'), 'PERSONAL_INFO_EXCLUDED@text:0-2 x'];
+  const sections = sectionTitles(facts, source, warnings);
+  assert.deepEqual(sections, ['경력사항', '경력사항', '업무 접근 방식', '업무 접근 방식', '강점']);
+  assert.deepEqual(factGroups(facts, sections).map(group => [group.title, group.indexes]), [['예시랩', [0, 1]], ['업무 접근 방식', [2, 3]], ['강점', [4]]]);
+  // 제목 정보가 없으면 예전처럼 마지막 회사에 붙는다(mock·규칙 결과).
+  assert.deepEqual(factGroups(facts).map(group => group.indexes), [[0, 1, 2, 3, 4]]);
+  assert.deepEqual(sectionTitles(facts, null, warnings), [null, null, null, null, null]);
 });

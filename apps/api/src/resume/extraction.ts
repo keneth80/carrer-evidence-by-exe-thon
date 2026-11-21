@@ -6,7 +6,7 @@ import { normalizePastedText } from '../../../../packages/resume/src/source.ts';
 import type { SourceText } from '../../../../packages/resume/src/source.ts';
 import { formatWarning, parseWarning } from '../../../../packages/resume/src/types.ts';
 import type { ResumeFact } from '../../../../packages/resume/src/types.ts';
-import { composeFacts, sourceLines } from '../../../../packages/resume/src/structure.ts';
+import { composeFacts, sourceLines, UNUSED_NOTE } from '../../../../packages/resume/src/structure.ts';
 import type { StructureProvider } from '../../../../packages/resume/src/structure.ts';
 import { newId, sha256Hex } from '../http.ts';
 import { extractionSourceKey } from './repository.ts';
@@ -89,7 +89,7 @@ async function refine(deps: ExtractionDeps, held: Claim, outcome: Outcome): Prom
     if (!composed) return outcome;
     // 규칙의 '분류하지 못함' 경고는 모델 결과로 바뀐다. 모델이 넣지 않은 줄은 경고로 남겨 사용자가 원문에서 다시 넣을 수 있게 한다.
     const kept = parsed.filter(item => item.code !== 'UNCLASSIFIED_LINE' || lines.some(line => line.state === 'hidden' && line.page === item.page && item.start !== null && line.start <= item.start && item.start < line.end)).map(formatWarning);
-    const unused = composed.unused.map(line => formatWarning({ code: 'UNCLASSIFIED_LINE', page: line.page, start: line.start, end: line.end, message: 'AI가 항목으로 넣지 않은 줄입니다(제목·장식 등). 경력이 맞으면 직접 추가하세요.' }));
+    const unused = composed.unused.map(line => formatWarning({ code: 'UNCLASSIFIED_LINE', page: line.page, start: line.start, end: line.end, message: `${UNUSED_NOTE}입니다(제목·장식 등). 경력이 맞으면 직접 추가하세요.` }));
     return { status: 'review_required', facts: composed.facts, warnings: [...kept.filter(warning => !warning.startsWith('NO_FACT_CANDIDATES')), ...unused], errorCode: null, source: outcome.source };
   } catch (error) {
     const known = error as { code?: unknown; transmission?: unknown } | null;

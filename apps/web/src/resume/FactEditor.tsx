@@ -33,7 +33,7 @@ function originBadge(item: EditableFact) {
   return <span className="tag extracted">원문에서 추출</span>;
 }
 
-type Props = { items: EditableFact[]; readOnly: boolean; onChange: (index: number, next: EditableFact) => void; onToggleGroup: (indexes: number[], included: boolean) => void; onShow: (span: Span) => void; inputKind?: string };
+type Props = { items: EditableFact[]; readOnly: boolean; onChange: (index: number, next: EditableFact) => void; onToggleGroup: (indexes: number[], included: boolean) => void; onShow: (span: Span) => void; inputKind?: string; sections?: (string | null)[] };
 
 // 회사·직무·기간·지역처럼 짧은 줄은 한 줄로 보여 준다(사용자 요청 2026-11-21). 길거나 여러 줄이면 예전 카드 그대로 둔다.
 const COMPACT = new Set<FactCategory>(['employer', 'role', 'period', 'location']);
@@ -56,10 +56,10 @@ function GroupHead({ group, items, readOnly, onToggle }: { group: FactGroup; ite
   </div>;
 }
 
-export function FactEditor({ items, readOnly, onChange, onToggleGroup, onShow, inputKind }: Props) {
+export function FactEditor({ items, readOnly, onChange, onToggleGroup, onShow, inputKind, sections }: Props) {
   if (items.length === 0) return <p className="muted">경력 항목이 없습니다. 왼쪽 원문에서 줄을 골라 추가하세요.</p>;
   // 묶음은 저장하지 않고 항목의 분류·순서에서 매번 계산한다. 분류를 바꾸면 묶음도 바로 따라 바뀐다.
-  return <div className="fact-groups">{factGroups(items.map(item => item.fact)).map(group => <section key={group.key} className="fact-group" aria-label={group.title}>
+  return <div className="fact-groups">{factGroups(items.map(item => item.fact), sections).map(group => <section key={group.key} className="fact-group" aria-label={group.title}>
     <GroupHead group={group} items={items} readOnly={readOnly} onToggle={included => onToggleGroup(group.indexes, included)} />
     <ol className="fact-list">
     {group.indexes.map(index => {
