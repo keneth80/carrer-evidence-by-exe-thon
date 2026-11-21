@@ -70,7 +70,8 @@ export function StartPage() {
   return <>
     <section className="hero compact">
       <span className="eyebrow">U01 · 이력서 등록</span>
-      <h1>이력서에서 맞는 기회를<br /><span>찾아드릴게요.</span></h1>
+      {/* 제품 목적(사용자 지시 2026-11-21): 공고 추천이 아니라, 관심 가는 공고에 맞춰 이력서를 수정·보완하는 것. */}
+      <h1>관심 있는 공고에 맞춰<br /><span>이력서를 다듬어 드릴게요.</span></h1>
       <p>지금은 <strong>텍스트가 있는 PDF(최대 {MAX_PDF_MB}MB, 30쪽)</strong>, <strong>Word(.docx, 최대 {MAX_PDF_MB}MB)</strong>, <strong>텍스트 붙여넣기</strong>를 지원합니다. Word는 본문과 표만 읽고 머리글·바닥글·이미지는 읽지 않습니다. 옛 Word(.doc)와 스캔 이미지 PDF는 읽지 못하니 .docx로 저장하거나 내용을 붙여넣어 주세요.</p>
     </section>
     <div className="intake-grid">

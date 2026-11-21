@@ -132,5 +132,5 @@ export function App() {
         : campaignNew ? { page: 'campaign_new', applicationId: campaignNew[1] } : campaign ? { page: 'campaign', campaignId: campaign[1] } : { page: 'start' };
   // 자체 테스트 폼은 별도 '사이트' 화면이라 제품 세션 없이 연다.
   const page = selfForm ? <SelfFormPage key={selfForm[1]} postingId={selfForm[1]} /> : path === '/demo/apply' ? <SelfFormIndex /> : path === '/preview' ? <Preview /> : <ResumeArea route={route} />;
-  return <><header className="topbar"><a className="brand" href="/start"><span className="brand-icon">ce</span>Career Evidence</a><nav className="top-nav"><a href="/start">내 이력서</a><a href="/applications">지원 이력</a><a href="/preview">기반 진단(합성)</a></nav><span className="mode-label">이력서 등록 · {liveSearch ? 'Liner 웹 검색' : 'mock 검색'} · 맞춤 편집·PDF · 자체 폼 지원 · 유사 공고 준비</span></header>{page}<footer>Career Evidence · 근거를 확인하고, 다음 기회를 준비하세요.</footer></>;
+  return <><header className="topbar"><a className="brand" href="/start"><span className="brand-icon">ce</span>Career Evidence</a><nav className="top-nav"><a href="/start">내 이력서</a><a href="/applications">지원 이력</a><a href="/preview">기반 진단(합성)</a></nav><span className="mode-label">이력서 등록 · {liveSearch ? 'Liner 웹 검색' : 'mock 검색'} · 맞춤 편집·PDF · 자체 폼 지원 · 유사 공고 준비</span></header>{page}<footer>Career Evidence · 관심 공고에 맞춰, 근거 있는 이력서를 준비하세요.</footer></>;
 }
