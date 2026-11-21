@@ -57,7 +57,7 @@ const sha256 = (value: string) => createHash('sha256').update(value).digest('hex
 export const RECRUIT_SITES: { domain: string; path?: RegExp }[] = [
   { domain: 'wanted.co.kr' }, { domain: 'jobkorea.co.kr' }, { domain: 'saramin.co.kr' },
   { domain: 'linkedin.com', path: /^\/jobs/ }, { domain: 'jobplanet.co.kr', path: /^\/job/ },
-  { domain: 'jumpit.co.kr' }, { domain: 'rocketpunch.com' }, { domain: 'rallit.com' }, { domain: 'rememberapp.co.kr', path: /^\/job/ },
+  { domain: 'jumpit.co.kr' }, { domain: 'rocketpunch.com' }, { domain: 'rallit.com', path: /^\/positions/ }, { domain: 'rememberapp.co.kr', path: /^\/job/ },
   { domain: 'incruit.com' }, { domain: 'programmers.co.kr' },
 ];
 // 채용 사이트 묶음(실호출 비교 2026-11-21): 사이트 이름을 낱말로 붙이면 결과가 바뀌지 않았고, site: 조건은 동작했다.

@@ -388,6 +388,7 @@ test('채용 사이트 우선: 채용 사이트 공고를 먼저 두고, 같은 
   assert.equal(isJobPosting('합성랩 백엔드 개발자 채용', u('https://www.jobplanet.co.kr/job/search?posting_ids%5B%5D=1'), '합성 공고'), true);
   assert.equal(isJobPosting('합성랩 백엔드 개발자 기업 리뷰', u('https://www.jobplanet.co.kr/companies/1/reviews'), '합성 리뷰'), false, 'company review page is not a posting');
   assert.equal(isJobPosting('합성랩 백엔드 개발자 채용', u('https://www.rallit.com/positions/1/backend'), ''), true);
+  assert.equal(isJobPosting('프론트엔드 개발자 프로필', u('https://www.rallit.com/hub/profiles/1'), '합성 프로필'), false, 'a profile page on a recruiting site is not a posting');
   assert.equal(isJobPosting('합성랩 백엔드 개발자 채용', u('https://www.google.com/goto?url=abc'), '합성 공고'), false, 'search-engine redirect link');
   assert.equal(isJobPosting('합성랩 백엔드 개발자 모집', u('https://www.threads.com/@synthetic/post/1'), '합성 공고'), false, 'social post');
 

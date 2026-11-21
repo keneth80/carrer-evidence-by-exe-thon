@@ -18,7 +18,8 @@ const HOSTLIKE = /^[a-z0-9.-]+\.[a-z]{2,}$/i;
 
 // 회사 이름으로 쓸 수 있는 값만(검색 결과에서 회사명을 읽지 못하면 사이트 주소가 들어 있다).
 export function companyName(job: ChatJob): string | null {
-  const name = squash(job.company_name.replace(/\(합성\)/g, ''));
+  // '회사(영문 이름)'처럼 괄호로 붙은 다른 표기는 뺀다. 검색 결과에는 보통 한쪽 이름만 나온다(실호출 2026-11-21).
+  const name = squash(job.company_name.replace(/\(합성\)/g, '').replace(/\s*\([^)]{1,30}\)\s*$/, ''));
   // 회사명을 읽지 못한 공고는 사이트 주소나 '… (검색 경유 링크)'가 들어 있다.
   return name.length >= 2 && !HOSTLIKE.test(name) && !name.includes('검색 경유 링크') ? name : null;
 }

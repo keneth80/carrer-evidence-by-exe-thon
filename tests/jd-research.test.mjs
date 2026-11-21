@@ -19,6 +19,8 @@ test('검색어는 회사 이름·공고 제목뿐이고, 회사 이름을 모�
   assert.equal(postingQuery(JOB), '합성랩 프론트엔드 개발자 채용 자격요건 우대사항');
   assert.equal(companyQuery(JOB), '합성랩 회사 소개 서비스 사업');
   assert.equal(companyName({ ...JOB, company_name: 'www.synth-jobs.example' }), null);
+  assert.equal(companyName({ ...JOB, company_name: '합성핏(SYNTHFIT)' }), '합성핏', 'an alias in parentheses is dropped');
+  assert.equal(companyName({ ...JOB, company_name: 'wanted.co.kr (검색 경유 링크)' }), null);
   assert.equal(postingQuery({ ...JOB, company_name: 'www.synth-jobs.example' }), null);
   assert.equal(postingQuery({ ...JOB, company_name: '합성랩 010-1234-5678' }), null, 'personal info never goes into a query');
 });
