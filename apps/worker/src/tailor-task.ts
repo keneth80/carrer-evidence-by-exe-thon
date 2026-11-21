@@ -65,24 +65,27 @@ function loadContext(deps: TailorWorkerDeps, task: LeasedTask): Context | string
   const facts = db.prepare('SELECT facts_json FROM ce7_fact_revisions WHERE workspace_id = ? AND id = ?').get(ws, base.fact_revision_id);
   const job = db.prepare('SELECT company_name, title, content_text, requirements_json FROM ce7_job_snapshots WHERE workspace_id = ? AND id = ?').get(ws, session.job_snapshot_id);
   if (!facts || !job) return 'TAILOR_CONTEXT_MISSING';
+  const checked = latestChecks(deps, ws, input.session_id);
+  // 답변 턴: 붙여넣은 본문에는 요구 목록이 없으므로 직전 JD 점검이 읽은 요구를 수정안 작성에 넘긴다(JD 점검 턴은 본문에서 다시 읽는다).
+  const carried: JobRequirement[] = input.message_id === null ? [] : checked.map((item, index) => ({ id: item.requirement_id ?? `req_c${index + 1}`, text: item.requirement, importance: item.importance, source_quote: item.requirement }));
   return {
     input, ...messages, blocks: JSON.parse(String(base.blocks_json)) as ResumeBlock[], facts: JSON.parse(String(facts.facts_json)) as FactLike[],
     // 붙여넣은 공고 본문이 있으면 그 글을 쓴다. 스냅샷의 요구 목록은 요약 기준이라 비우고 본문에서 다시 읽는다(S1-28).
     job: typeof session.job_text === 'string' && session.job_text
-      ? { company_name: String(job.company_name), title: String(job.title), content_text: session.job_text, requirements: [], content_source: 'pasted' }
+      ? { company_name: String(job.company_name), title: String(job.title), content_text: session.job_text, requirements: carried, content_source: 'pasted' }
       : { company_name: String(job.company_name), title: String(job.title), content_text: String(job.content_text), requirements: JSON.parse(String(job.requirements_json)) as JobRequirement[] },
-    checks: latestChecks(deps, ws, input.session_id),
+    checks: checked.map(({ requirement, importance, status, note }) => ({ requirement, importance, status, note })),
   };
 }
 
 // 가장 최근 JD 점검의 요구사항 판정. 답변 턴의 수정안 작성이 어느 요구를 겨냥할지 정하는 자료로만 쓴다.
-function latestChecks(deps: TailorWorkerDeps, ws: string, sessionId: string): ChatRequirementCheck[] {
+function latestChecks(deps: TailorWorkerDeps, ws: string, sessionId: string): (ChatRequirementCheck & { requirement_id?: string })[] {
   const rows = deps.db.prepare("SELECT result_json FROM ce7_messages WHERE workspace_id = ? AND session_id = ? AND role = 'assistant' AND result_json IS NOT NULL ORDER BY created_at_ms DESC, rowid DESC LIMIT 20").all(ws, sessionId);
   for (const row of rows) {
     try {
-      const turn = JSON.parse(String(row.result_json)) as { kind?: string; requirements?: ChatRequirementCheck[] };
+      const turn = JSON.parse(String(row.result_json)) as { kind?: string; requirements?: (ChatRequirementCheck & { requirement_id?: string })[] };
       if (turn.kind === 'jd_check' && Array.isArray(turn.requirements) && turn.requirements.length > 0) {
-        return turn.requirements.map(item => ({ requirement: String(item.requirement), importance: item.importance, status: item.status, note: String(item.note ?? '') }));
+        return turn.requirements.map(item => ({ requirement_id: typeof item.requirement_id === 'string' ? item.requirement_id : undefined, requirement: String(item.requirement), importance: item.importance, status: item.status, note: String(item.note ?? '') }));
       }
     } catch { /* 형식이 틀린 기록은 건너뛴다 */ }
   }

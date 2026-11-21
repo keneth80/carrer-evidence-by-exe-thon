@@ -125,6 +125,13 @@ test('API: 공고 본문 붙여넣기는 세션에만 저장하고(스냅샷 그
     const last = (await http.get(`/api/v1/tailoring-sessions/${session.id}/messages`)).body.items.at(-1);
     assert.ok(last.turn.requirements.some(item => /Rust/.test(item.requirement)), 'requirements come from the pasted text');
     assert.match(last.turn.pipeline.stages[0].note, /붙여넣은 공고 본문/);
+    // 답변 턴: 직전 JD 점검이 본문에서 읽은 요구가 수정안 작성(대화 provider)에 전달된다.
+    const seen = [];
+    const provider = { mode: 'mock', respond: async input => { seen.push(input.job.requirements.map(item => item.text), input.checks.length); return { reply: '확인했어요.', changes: [], questions: [] }; } };
+    await http.post(`/api/v1/tailoring-sessions/${session.id}/messages`, { json: { expected_resume_revision_id: revision.id, content: '이 공고에 맞춰 수정해줘' } });
+    assert.equal(await runTailor(api, { provider, stages: createMockTailorStageProvider() }), 'succeeded');
+    assert.ok(seen[0].some(text => /Rust/.test(text)), 'carried requirements');
+    assert.equal(seen[1], last.turn.requirements.length);
   } finally { await api.stop(); cleanup(); }
 });
 
