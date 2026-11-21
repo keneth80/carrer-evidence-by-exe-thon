@@ -144,7 +144,8 @@ export function ReviewPage({ documentId }: { documentId: string }) {
       <section className="panel" aria-labelledby="facts-title">
         <h2 id="facts-title">{revision && !editing ? '확정 경력' : '경력 항목 확인'} <span className="count">{includedCount}</span></h2>
         {!readOnly && <FactBulkBar items={items} onChange={setItems} />}
-        <FactEditor inputKind={document.input_kind} items={items} readOnly={readOnly} onShow={setHighlight} onChange={(index, next) => setItems(current => current.map((item, i) => i === index ? next : item))} />
+        <FactEditor inputKind={document.input_kind} items={items} readOnly={readOnly} onShow={setHighlight} onChange={(index, next) => setItems(current => current.map((item, i) => i === index ? next : item))}
+          onToggleGroup={(indexes, included) => setItems(current => current.map((item, i) => indexes.includes(i) && item.included !== included ? { ...item, included } : item))} />
         <WarningsPanel warnings={draft.warnings} source={source} readOnly={readOnly} onShow={setHighlight} onAdd={addFromSource} onAddMany={addLinesFromSource} />
       </section>
     </div>}

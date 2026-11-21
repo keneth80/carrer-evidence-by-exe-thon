@@ -1,6 +1,8 @@
 import { FACT_CATEGORIES } from '../../../../packages/resume/src/types.ts';
 import { statementWithinEvidence } from '../../../../packages/resume/src/source.ts';
 import type { FactCategory, ResumeFact } from '../../../../packages/resume/src/types.ts';
+import { factGroups } from '../../../../packages/tailor/src/fact-groups.ts';
+import type { FactGroup } from '../../../../packages/tailor/src/fact-groups.ts';
 import type { Span } from './SourcePanel.tsx';
 import { pagelessLabel } from './SourcePanel.tsx';
 
@@ -31,12 +33,33 @@ function originBadge(item: EditableFact) {
   return <span className="tag extracted">원문에서 추출</span>;
 }
 
-type Props = { items: EditableFact[]; readOnly: boolean; onChange: (index: number, next: EditableFact) => void; onShow: (span: Span) => void; inputKind?: string };
+type Props = { items: EditableFact[]; readOnly: boolean; onChange: (index: number, next: EditableFact) => void; onToggleGroup: (indexes: number[], included: boolean) => void; onShow: (span: Span) => void; inputKind?: string };
 
-export function FactEditor({ items, readOnly, onChange, onShow, inputKind }: Props) {
+const KIND_LABEL: Partial<Record<FactGroup['kind'], string>> = { employer: '경력', project: '프로젝트' };
+
+// 묶음 머리: 체크박스 하나로 묶음 전체를 넣고 뺀다. 일부만 포함이면 중간 상태로 보인다.
+function GroupHead({ group, items, readOnly, onToggle }: { group: FactGroup; items: EditableFact[]; readOnly: boolean; onToggle: (included: boolean) => void }) {
+  const included = group.indexes.filter(index => items[index].included).length;
+  const all = included === group.indexes.length;
+  return <div className="fact-group-head">
+    <label className="check">
+      <input type="checkbox" checked={all} disabled={readOnly} aria-label={`${group.title} 묶음 전체 포함`}
+        ref={element => { if (element) element.indeterminate = included > 0 && !all; }} onChange={event => onToggle(event.target.checked)} />
+      {KIND_LABEL[group.kind] && <span className="tag extracted">{KIND_LABEL[group.kind]}</span>}
+      <strong>{group.title}</strong>
+    </label>
+    <span className="muted">포함 {included} / {group.indexes.length}</span>
+  </div>;
+}
+
+export function FactEditor({ items, readOnly, onChange, onToggleGroup, onShow, inputKind }: Props) {
   if (items.length === 0) return <p className="muted">경력 항목이 없습니다. 왼쪽 원문에서 줄을 골라 추가하세요.</p>;
-  return <ol className="fact-list">
-    {items.map((item, index) => {
+  // 묶음은 저장하지 않고 항목의 분류·순서에서 매번 계산한다. 분류를 바꾸면 묶음도 바로 따라 바뀐다.
+  return <div className="fact-groups">{factGroups(items.map(item => item.fact)).map(group => <section key={group.key} className="fact-group" aria-label={group.title}>
+    <GroupHead group={group} items={items} readOnly={readOnly} onToggle={included => onToggleGroup(group.indexes, included)} />
+    <ol className="fact-list">
+    {group.indexes.map(index => {
+      const item = items[index];
       const evidence = item.fact.evidence[0];
       const span = evidence && evidence.kind === 'document' ? { page: evidence.page, start: evidence.start, end: evidence.end } : null;
       return <li key={item.fact.id} className={item.included ? '' : 'excluded'}>
@@ -56,5 +79,6 @@ export function FactEditor({ items, readOnly, onChange, onShow, inputKind }: Pro
         </div>
       </li>;
     })}
-  </ol>;
+    </ol>
+  </section>)}</div>;
 }

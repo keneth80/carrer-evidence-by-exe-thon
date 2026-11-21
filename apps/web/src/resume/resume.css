@@ -50,6 +50,10 @@ mark{background:#ffe8a3;color:inherit;border-radius:3px;padding:0 1px}
 .fact-list{list-style:none;padding:0;margin:0;display:grid;gap:10px}
 .fact-list li{border:1px solid #e3eaeb;border-radius:8px;padding:10px 12px;display:grid;gap:6px}
 .fact-list li.excluded{opacity:.55;background:#fafbfb}
+.fact-groups{display:grid;gap:14px}
+.fact-group{border:1px solid #cfdcde;border-radius:10px;padding:10px 12px;display:grid;gap:10px;background:#fcfdfd}
+.fact-group-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.fact-group-head .check{font-size:14px;gap:8px}
 .fact-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .fact-head select{padding:5px 30px 5px 8px;font-size:12px}
 .check{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:650}

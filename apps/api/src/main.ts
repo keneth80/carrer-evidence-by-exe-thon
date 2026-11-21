@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { openDatabase } from '../../../packages/db/src/index.ts';
-import { readConfig } from './config.ts';
+import { readConfig, readLinerApiKey } from './config.ts';
+import { createLinerLedger } from '../../worker/src/liner-ledger.ts';
+import { createLinerStructureProvider } from '../../../packages/liner/src/structure.ts';
 import { createApiServer } from './server.ts';
 import { createObjectStore } from './resume/storage.ts';
 import { recoverExtractionTasks, runExtractionTask } from './resume/extraction.ts';
@@ -9,7 +11,14 @@ import type { ExtractionDeps } from './resume/extraction.ts';
 const config = readConfig();
 const db = openDatabase(config.databasePath);
 const store = createObjectStore(config.objectDir);
-const extraction: ExtractionDeps = { db, store, owner: `api-${randomUUID()}`, leaseMs: config.limits.extractionLeaseMs, now: Date.now };
+const owner = `api-${randomUUID()}`;
+// 분류 보정(S1-30)은 실호출 대화(CHAT_MODE=liner)일 때만, worker와 같은 대화 원장 한도(purpose=chat) 안에서 나간다. mock이면 규칙 분류만 쓴다.
+const structure = config.chat ? createLinerStructureProvider({
+  apiKey: readLinerApiKey(), fetch, routing: config.chat.routing,
+  ledger: createLinerLedger({ db, owner, now: Date.now, maxCalls: config.chat.maxCalls, budgetMicroUsd: config.chat.budgetMicroUsd }),
+  onUsage: usage => console.log(`LINER_CHAT_USAGE model=${usage.model} prompt_tokens=${usage.prompt_tokens} completion_tokens=${usage.completion_tokens} micro_usd=${usage.micro_usd}`),
+}) : null;
+const extraction: ExtractionDeps = { db, store, owner, leaseMs: config.limits.extractionLeaseMs, now: Date.now, structure };
 const logFailure = (error: unknown) => console.error('EXTRACTION_TASK_FAILED', error instanceof Error ? error.message : 'unknown');
 const schedule = (taskId: string) => { setImmediate(() => { runExtractionTask(extraction, taskId).catch(logFailure); }); };
 

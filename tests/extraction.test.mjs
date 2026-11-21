@@ -210,3 +210,42 @@ test('queued extraction survives restart and a runner that lost its lease cannot
     cleanup();
   }
 });
+
+// 분류·묶음 보정(S1-30): 모델 응답은 분류와 위치만 바꾸고, 실패하거나 다시 집힌 작업에서는 규칙 분류 그대로 저장한다.
+test('structure provider refines categories once; failure or a re-claimed task falls back to rule categories', async () => {
+  const { folder, cleanup } = tempFolder('s01-structure-');
+  const api = await startApi(folder, { autoExtract: false });
+  try {
+    const http = client(api, await login(api, 'erin'));
+    const text = '경력\n예시랩 | 2019.03 - 현재\n배치 파이프라인 처리 시간을 40% 줄였습니다.\n서비스 운영을 맡았습니다.';
+    const calls = [];
+    // 같은 내용 중복 등록으로 묶이지 않게 줄 하나를 다르게 한다.
+    let seq = 0;
+    const upload = async () => (await http.post('/api/v1/resume-documents/text', { json: { text: text.replace('예시랩', `예시랩${++seq}`) } })).body;
+    const draft = async id => (await http.get(`/api/v1/resume-documents/${id}/extraction`)).body;
+
+    const first = await upload();
+    const ok = { classify: async input => { calls.push(input); return { items: [{ n: input.lines.length - 1, category: 'achievement', under: null }, { n: 999, category: 'role', under: null }] }; } };
+    assert.equal(await runExtractionTask({ ...api.extraction, structure: ok }, first.task.id), 'completed');
+    const refined = await draft(first.resource_id);
+    assert.equal(refined.facts.at(-1).category, 'achievement');
+    assert.equal(refined.facts.at(-1).statement, '서비스 운영을 맡았습니다.');
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].call, { workspaceId: calls[0].call.workspaceId, taskId: first.task.id, leaseGeneration: 1 });
+    assert.ok(calls[0].lines.every(line => Object.keys(line).join() === 'n,category,statement'));
+
+    const second = await upload();
+    const broken = { classify: async () => { throw Object.assign(new Error('x'), { code: 'LINER_CALL_LIMIT' }); } };
+    assert.equal(await runExtractionTask({ ...api.extraction, structure: broken }, second.task.id), 'completed');
+    assert.equal((await draft(second.resource_id)).facts.at(-1).category, 'responsibility');
+
+    const third = await upload();
+    api.db.prepare("UPDATE ce7_tasks SET state = 'running', lease_owner = 'dead-runner', lease_generation = 1, lease_until_ms = 1 WHERE id = ?").run(third.task.id);
+    assert.equal(await runExtractionTask({ ...api.extraction, structure: ok }, third.task.id), 'completed');
+    assert.equal(calls.length, 1, 're-claimed task does not send the paid call again');
+    assert.equal((await draft(third.resource_id)).facts.at(-1).category, 'responsibility');
+  } finally {
+    await api.stop();
+    cleanup();
+  }
+});

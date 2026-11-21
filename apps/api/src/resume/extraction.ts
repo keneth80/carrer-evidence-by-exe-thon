@@ -6,15 +6,18 @@ import { normalizePastedText } from '../../../../packages/resume/src/source.ts';
 import type { SourceText } from '../../../../packages/resume/src/source.ts';
 import { formatWarning } from '../../../../packages/resume/src/types.ts';
 import type { ResumeFact } from '../../../../packages/resume/src/types.ts';
+import { applyStructure, structureLines } from '../../../../packages/resume/src/structure.ts';
+import type { StructureProvider } from '../../../../packages/resume/src/structure.ts';
 import { newId, sha256Hex } from '../http.ts';
 import { extractionSourceKey } from './repository.ts';
 import type { DocumentRow } from './repository.ts';
 import type { ObjectStore } from './storage.ts';
 
-// extract_resume 작업 실행기. 네트워크·유료 호출이 없는 로컬 추출이라 lease 만료 후 재실행해도 안전하다.
+// extract_resume 작업 실행기. 본문 읽기와 규칙 분류는 로컬이라 lease 만료 후 재실행해도 안전하다.
+// structure가 있으면(CHAT_MODE=liner) 분류·묶음 보정을 위해 유료 호출을 한 번 한다(S1-30). 첫 시도에서만 보내고, 실패하면 규칙 분류 그대로 저장한다.
 // 결과 저장은 lease owner·generation·만료를 transaction 안에서 다시 확인한다(CLAUDE.md 불변 조건).
 
-export type ExtractionDeps = { db: DatabaseSync; store: ObjectStore; owner: string; leaseMs: number; now: () => number };
+export type ExtractionDeps = { db: DatabaseSync; store: ObjectStore; owner: string; leaseMs: number; now: () => number; structure?: StructureProvider | null };
 // lease를 잃고 다시 집힌 횟수의 상한. 넘으면 무한 재시도 대신 실패로 끝내고 붙여넣기 안내를 보여준다.
 export const MAX_EXTRACTION_ATTEMPTS = 3;
 
@@ -64,6 +67,21 @@ async function extract(document: DocumentRow, bytes: Buffer): Promise<Outcome> {
   return { status: 'review_required', facts: candidates.facts, warnings, errorCode: null, source };
 }
 
+// 분류 보정은 선택 단계다. 한도 초과·시간 초과·형식 오류는 추출 실패가 아니라 규칙 분류로 돌아간다.
+// 다시 집힌 작업(generation > 1)에서는 보내지 않는다(전송 여부가 불명확한 유료 호출을 자동 재시도하지 않는다).
+async function refine(deps: ExtractionDeps, held: Claim, outcome: Outcome): Promise<Outcome> {
+  if (!deps.structure || outcome.status !== 'review_required' || held.generation !== 1) return outcome;
+  try {
+    const output = await deps.structure.classify({ lines: structureLines(outcome.facts), call: { workspaceId: held.workspaceId, taskId: held.taskId, leaseGeneration: held.generation } });
+    const refined = applyStructure(outcome.facts, output);
+    console.log(`EXTRACTION_STRUCTURE lines=${outcome.facts.length} changed=${refined.changed} moved=${refined.moved}`);
+    return { ...outcome, facts: refined.facts };
+  } catch (error) {
+    console.error('EXTRACTION_STRUCTURE_SKIPPED', (error as { code?: unknown } | null)?.code ?? 'unknown');
+    return outcome;
+  }
+}
+
 function complete(deps: ExtractionDeps, held: Claim, document: DocumentRow, outcome: Outcome, extractionId: string): boolean {
   const { db } = deps;
   const now = deps.now();
@@ -99,6 +117,7 @@ export async function runExtractionTask(deps: ExtractionDeps, taskId: string): P
     } catch {
       outcome = failed('SOURCE_UNAVAILABLE', '저장된 원본 파일을 읽을 수 없습니다.');
     }
+    outcome = await refine(deps, held, outcome);
   }
   const extractionId = newId('extraction');
   // 원문 텍스트 파일은 transaction 밖에서 먼저 쓴다. lease를 잃으면 참조되지 않는 파일만 남는다.
