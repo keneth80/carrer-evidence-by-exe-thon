@@ -35,6 +35,10 @@ function originBadge(item: EditableFact) {
 
 type Props = { items: EditableFact[]; readOnly: boolean; onChange: (index: number, next: EditableFact) => void; onToggleGroup: (indexes: number[], included: boolean) => void; onShow: (span: Span) => void; inputKind?: string };
 
+// 회사·직무·기간·지역처럼 짧은 줄은 한 줄로 보여 준다(사용자 요청 2026-11-21). 길거나 여러 줄이면 예전 카드 그대로 둔다.
+const COMPACT = new Set<FactCategory>(['employer', 'role', 'period', 'location']);
+const isCompact = (fact: ResumeFact) => COMPACT.has(fact.category) && fact.statement.length <= 40 && !fact.statement.includes('\n');
+
 const KIND_LABEL: Partial<Record<FactGroup['kind'], string>> = { employer: '경력', project: '프로젝트' };
 
 // 묶음 머리: 체크박스 하나로 묶음 전체를 넣고 뺀다. 일부만 포함이면 중간 상태로 보인다.
@@ -62,21 +66,28 @@ export function FactEditor({ items, readOnly, onChange, onToggleGroup, onShow, i
       const item = items[index];
       const evidence = item.fact.evidence[0];
       const span = evidence && evidence.kind === 'document' ? { page: evidence.page, start: evidence.start, end: evidence.end } : null;
-      return <li key={item.fact.id} className={item.included ? '' : 'excluded'}>
+      const compact = isCompact(item.fact);
+      const invalid = !readOnly && item.included && !isWithinEvidence(item);
+      const setStatement = (statement: string) => onChange(index, { ...item, fact: { ...item.fact, statement } });
+      return <li key={item.fact.id} className={`${item.included ? '' : 'excluded'}${compact ? ' compact' : ''}`}>
         <div className="fact-head">
-          <label className="check"><input type="checkbox" checked={item.included} disabled={readOnly} onChange={event => onChange(index, { ...item, included: event.target.checked })} /> 포함</label>
+          <label className="check"><input type="checkbox" checked={item.included} disabled={readOnly} onChange={event => onChange(index, { ...item, included: event.target.checked })} /> {compact ? <span className="sr-only">포함</span> : '포함'}</label>
           <select aria-label="항목 분류" value={item.fact.category} disabled={readOnly} onChange={event => onChange(index, { ...item, fact: { ...item.fact, category: event.target.value as FactCategory } })}>
             {FACT_CATEGORIES.map(category => <option key={category} value={category}>{categoryLabel[category]}</option>)}
           </select>
+          {compact && <input type="text" className="fact-line" aria-label="항목 내용" value={item.fact.statement} readOnly={readOnly} onChange={event => setStatement(event.target.value)} />}
           {originBadge(item)}
+          {compact && span && <button type="button" className="ghost" title={`원문 위치 보기 (${locationText(item.fact, inputKind)})`} onClick={() => onShow(span)}>원문</button>}
         </div>
-        <textarea aria-label="항목 내용" value={item.fact.statement} readOnly={readOnly} rows={Math.min(4, Math.ceil(item.fact.statement.length / 48) || 1)}
-          onChange={event => onChange(index, { ...item, fact: { ...item.fact, statement: event.target.value } })} />
-        {!readOnly && item.included && !isWithinEvidence(item) && <p className="field-error" role="alert">원문 근거 안의 표현으로만 줄이거나 다듬을 수 있습니다. 원문에 없는 수치·역할·자격은 아직 확정할 수 없습니다.</p>}
-        <div className="fact-evidence">
-          <span className="muted">근거: “{evidence?.quote}”</span>
-          {span && <button type="button" className="ghost" onClick={() => onShow(span)}>원문 위치 보기 ({locationText(item.fact, inputKind)})</button>}
-        </div>
+        {!compact && <textarea aria-label="항목 내용" value={item.fact.statement} readOnly={readOnly} rows={Math.min(4, Math.ceil(item.fact.statement.length / 48) || 1)}
+          onChange={event => setStatement(event.target.value)} />}
+        {invalid && <p className="field-error" role="alert">원문 근거 안의 표현으로만 줄이거나 다듬을 수 있습니다. 원문에 없는 수치·역할·자격은 아직 확정할 수 없습니다.</p>}
+        {/* 한 줄 보기에서는 문장과 근거가 같으면 근거를 다시 적지 않는다. 고쳐 쓴 경우에만 원문을 함께 보여 준다. */}
+        {compact ? evidence && evidence.quote !== item.fact.statement && <div className="fact-evidence"><span className="muted">근거: “{evidence.quote}”</span></div>
+          : <div className="fact-evidence">
+            <span className="muted">근거: “{evidence?.quote}”</span>
+            {span && <button type="button" className="ghost" onClick={() => onShow(span)}>원문 위치 보기 ({locationText(item.fact, inputKind)})</button>}
+          </div>}
       </li>;
     })}
     </ol>

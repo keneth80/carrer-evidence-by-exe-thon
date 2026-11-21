@@ -57,6 +57,12 @@ mark{background:#ffe8a3;color:inherit;border-radius:3px;padding:0 1px}
 .fact-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .fact-head select{padding:5px 30px 5px 8px;font-size:12px}
 .check{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:650}
+.fact-list li.compact{padding:6px 10px;gap:4px}
+.fact-list li.compact .fact-head{flex-wrap:nowrap}
+.fact-line{flex:1;min-width:0;border:1px solid #d5e1e2;border-radius:6px;padding:5px 8px;font-size:14px}
+.fact-line[readonly]{background:#f8fafa;border-color:transparent}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (max-width:640px){.fact-list li.compact .fact-head{flex-wrap:wrap}}
 .fact-list textarea{width:100%;border:1px solid #d5e1e2;border-radius:6px;padding:8px 10px;resize:vertical;font-size:14px}
 .fact-list textarea[readonly]{background:#f8fafa;border-color:transparent}
 .fact-evidence{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px}
