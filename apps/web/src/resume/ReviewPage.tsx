@@ -136,6 +136,9 @@ export function ReviewPage({ documentId }: { documentId: string }) {
     </div>}
     {/* 확정 경력이 있고 수정 중이 아닐 때 에이전트 점검·보완을 맨 앞에 보여 준다(S1-16). */}
     {revision && !editing && draft && <SupplementSection documentId={document.id} extractionId={draft.id} head={revision} onConfirmed={refresh} />}
+    {/* AI 정리가 돌지 않았으면(mock·한도 초과·호출 실패) 조용히 규칙 결과만 보이지 않게 알린다. 작업의 실제 전송 상태로 판단한다. */}
+    {!revision && draft?.status === 'review_required' && summary.latest_task?.kind === 'extract_resume' && summary.latest_task.provider_transmission !== 'completed'
+      && <div className="notice"><strong>AI 정리 없이 읽은 결과</strong><span>{summary.latest_task.provider_transmission === 'unknown' ? 'AI 정리 호출이 실패했거나 응답을 확인하지 못해' : 'AI 정리가 꺼져 있거나 사용 한도에 걸려'} 규칙으로 줄을 나눈 결과만 보여 드립니다. 항목이 조각나 보일 수 있어요.</span></div>}
     {!revision && draft?.status === 'review_required' && <div className="notice"><strong>아직 확정 전</strong><span>아래 항목은 자동 추출 후보입니다. 확인하고 저장해야 확정 경력이 됩니다.</span></div>}
     {draft && <div className="review-grid">
       <section className="panel" aria-labelledby="source-title">

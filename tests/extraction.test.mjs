@@ -211,43 +211,49 @@ test('queued extraction survives restart and a runner that lost its lease cannot
   }
 });
 
-// 분류·묶음 보정(S1-30): 모델 응답은 분류와 위치만 바꾸고, 실패하거나 다시 집힌 작업에서는 규칙 분류 그대로 저장한다.
-test('structure provider refines categories once; failure or a re-claimed task falls back to rule categories', async () => {
+// 항목 구성(S1-32): 실호출에서는 모델이 원문 줄 범위로 항목을 정한다. 실패하거나 다시 집힌 작업에서는 규칙으로 나눈 결과를 저장한다.
+test('model-composed items replace rule candidates once; failure or a re-claimed task falls back to rules', async () => {
   const { folder, cleanup } = tempFolder('s01-structure-');
   const api = await startApi(folder, { autoExtract: false });
   try {
     const http = client(api, await login(api, 'erin'));
-    const text = '경력\n예시랩 | 2019.03 - 현재\n배치 파이프라인 처리 시간을 40% 줄였습니다.\n서비스 운영을 맡았습니다.';
+    const text = '경력\n예시랩 | 2019.03 - 현재\n배치 파이프라인 처리 시간을\n40% 줄였습니다.\n서비스 운영을 맡았습니다.';
     const calls = [];
     // 같은 내용 중복 등록으로 묶이지 않게 줄 하나를 다르게 한다.
     let seq = 0;
     const upload = async () => (await http.post('/api/v1/resume-documents/text', { json: { text: text.replace('예시랩', `예시랩${++seq}`) } })).body;
     const draft = async id => (await http.get(`/api/v1/resume-documents/${id}/extraction`)).body;
+    const transmission = async id => (await http.get(`/api/v1/product-tasks/${id}`)).body.provider_transmission;
 
     const first = await upload();
-    const ok = { classify: async input => { calls.push(input); return { items: [{ n: input.lines.length - 1, category: 'achievement', under: null }, { n: 999, category: 'role', under: null }], adds: [] }; } };
+    const ok = { compose: async input => { calls.push(input); return { items: [{ from: 1, to: 1, text: null, category: 'employer' }, { from: 2, to: 3, text: null, category: 'achievement' }, { from: 4, to: 4, text: null, category: 'responsibility' }] }; } };
     assert.equal(await runExtractionTask({ ...api.extraction, structure: ok }, first.task.id), 'completed');
-    const refined = await draft(first.resource_id);
-    assert.equal(refined.facts.at(-1).category, 'achievement');
-    assert.equal(refined.facts.at(-1).statement, '서비스 운영을 맡았습니다.');
+    const composed = await draft(first.resource_id);
+    assert.deepEqual(composed.facts.map(fact => [fact.category, fact.statement]).slice(1), [['achievement', '배치 파이프라인 처리 시간을 40% 줄였습니다.'], ['responsibility', '서비스 운영을 맡았습니다.']]);
+    assert.ok(composed.warnings.some(warning => warning.includes('AI가 항목으로 넣지 않은 줄')), 'the unused heading line stays addable');
     assert.equal(calls.length, 1);
-    // 원문 전체가 함께 가고, 화면의 단계 표시가 읽는 전송 상태가 작업에 남는다.
-    assert.ok(calls[0].context.source.some(line => line.text.includes('배치 파이프라인')));
-    assert.equal((await http.get(`/api/v1/product-tasks/${first.task.id}`)).body.provider_transmission, 'completed');
     assert.deepEqual(calls[0].call, { workspaceId: calls[0].call.workspaceId, taskId: first.task.id, leaseGeneration: 1 });
-    assert.ok(calls[0].lines.every(line => Object.keys(line).join() === 'n,category,statement'));
+    // 원문 전체가 줄 단위로 함께 가고, 화면의 단계 표시가 읽는 전송 상태가 작업에 남는다.
+    assert.deepEqual(calls[0].lines.map(line => line.text).slice(2), ['배치 파이프라인 처리 시간을', '40% 줄였습니다.', '서비스 운영을 맡았습니다.']);
+    assert.equal(await transmission(first.task.id), 'completed');
+    // 모델이 만든 항목도 사용자가 확정할 때 같은 원문 근거 검사를 통과한다.
+    const confirmed = await http.post(`/api/v1/resume-documents/${first.resource_id}/fact-revisions`, { json: { extraction_id: composed.id, expected_parent_revision_id: null, facts: composed.facts } });
+    assert.equal(confirmed.status, 201);
 
     const second = await upload();
-    const broken = { classify: async () => { throw Object.assign(new Error('x'), { code: 'LINER_CALL_LIMIT' }); } };
+    const broken = { compose: async () => { throw Object.assign(new Error('x'), { code: 'LINER_CALL_LIMIT' }); } };
     assert.equal(await runExtractionTask({ ...api.extraction, structure: broken }, second.task.id), 'completed');
-    assert.equal((await draft(second.resource_id)).facts.at(-1).category, 'responsibility');
-    assert.equal((await http.get(`/api/v1/product-tasks/${second.task.id}`)).body.provider_transmission, 'unknown');
+    assert.deepEqual((await draft(second.resource_id)).facts.map(fact => fact.statement).slice(-2), ['40% 줄였습니다.', '서비스 운영을 맡았습니다.']);
+    assert.equal(await transmission(second.task.id), 'unknown');
+
+    const thin = await upload();
+    assert.equal(await runExtractionTask({ ...api.extraction, structure: { compose: async () => ({ items: [{ from: 0, to: 0, text: null, category: 'other' }] }) } }, thin.task.id), 'completed');
+    assert.ok((await draft(thin.resource_id)).facts.length >= 3, 'a response that covers too little is rejected');
 
     const third = await upload();
     api.db.prepare("UPDATE ce7_tasks SET state = 'running', lease_owner = 'dead-runner', lease_generation = 1, lease_until_ms = 1 WHERE id = ?").run(third.task.id);
     assert.equal(await runExtractionTask({ ...api.extraction, structure: ok }, third.task.id), 'completed');
     assert.equal(calls.length, 1, 're-claimed task does not send the paid call again');
-    assert.equal((await draft(third.resource_id)).facts.at(-1).category, 'responsibility');
   } finally {
     await api.stop();
     cleanup();

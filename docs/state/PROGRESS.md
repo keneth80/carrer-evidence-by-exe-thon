@@ -8,6 +8,7 @@
 | --- | --- | --- |
 | 추출 확인 화면 묶음·Liner 분류 보정(S1-30) | VERIFIED | 2026-11-21 typecheck·테스트 257건·build PASS, 합성 이력서 실호출 1건, 브라우저 확인 |
 | 이력서 정리(원문 전체 전달)·읽기 진행 표시(S1-31) | VERIFIED(로딩바 브라우저 확인은 NOT_RUN) | 2026-11-21 typecheck·테스트 261건·build PASS, 합성 이력서 실호출 1건 |
+| 모델이 항목을 정하는 이력서 읽기(S1-32) | VERIFIED | 2026-11-21 typecheck·테스트·build PASS, 실제 PDF 실호출 1건(개수·분류만 확인) |
 | 통합 제품·UI·아키텍처·단계 프롬프트 | DOCUMENTED | docs 현재 문서, prompts/solo-start.md |
 | 사용자 방향과 구현 기본값 | DOCUMENTED | 루트 DECISIONS.md |
 | v0.4 기준 사본 | PRESERVED | 기존 계약·해시·회귀 보존 |
