@@ -8,7 +8,8 @@ import type { FactLike, ProposedChange, ResumeBlock } from './types.ts';
 
 export type ChatTurn = { role: 'user' | 'assistant'; content: string };
 // content_source: 공고 글의 출처. 'pasted'는 사용자가 붙여넣은 본문(S1-28), 없거나 'summary'는 검색 요약·기존 공고 글.
-export type ChatJob = { company_name: string; title: string; content_text: string; requirements: JobRequirement[]; content_source?: 'summary' | 'pasted' };
+// 'searched'는 검색 요약이 짧아 같은 공고의 다른 검색 요약을 덧붙인 글(S1-29). company_context: 회사 참고 정보(검색 요약, 이력서 근거 아님).
+export type ChatJob = { company_name: string; title: string; content_text: string; requirements: JobRequirement[]; content_source?: 'summary' | 'pasted' | 'searched'; company_context?: string };
 // 직전 JD 점검의 요구사항 판정. 수정안 작성이 어느 요구를 겨냥할지 정하는 자료다(근거는 아니다).
 export type ChatRequirementCheck = { requirement: string; importance: JobRequirement['importance']; status: 'met' | 'weak' | 'missing'; note: string };
 // call: 유료 호출 원장에 남길 작업·lease generation. live provider는 이 값 없이 호출하지 않는다.

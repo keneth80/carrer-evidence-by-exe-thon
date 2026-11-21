@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { userSentenceFor } from '../../../packages/tailor/src/user-sentence.ts';
 import { screenChanges } from '../../../packages/tailor/src/screen-changes.ts';
 import type { ChatProvider, ChatRequirementCheck, ChatTurn } from '../../../packages/tailor/src/provider.ts';
+import type { ResearchProvider } from '../../../packages/tailor/src/research.ts';
 import type { TailorStageProvider } from '../../../packages/tailor/src/jd-check.ts';
 import { runTailorPipeline } from '../../../packages/tailor/src/tailor-pipeline.ts';
 import type { TailorStageKey, TailorTurn } from '../../../packages/tailor/src/tailor-pipeline.ts';
@@ -16,7 +17,7 @@ import type { LeaseDeps, LeasedTask } from './lease.ts';
 // - 근거 범위를 넘는 변경은 저장하지 않고 확인 질문으로 돌린다. 사실 확인 변경은 사용자 메시지 안의 문장만 허용한다.
 // - 단계 경계마다 진행 기록을 세션에 남긴다(lease 확인). stages가 없으면 기존 단일 호출(②·④ 생략)로 동작한다.
 
-export type TailorWorkerDeps = LeaseDeps & { provider: ChatProvider; stages?: TailorStageProvider; beforeComplete?: (task: LeasedTask) => void | Promise<void> };
+export type TailorWorkerDeps = LeaseDeps & { provider: ChatProvider; stages?: TailorStageProvider; research?: ResearchProvider | null; beforeComplete?: (task: LeasedTask) => void | Promise<void> };
 export type TailorRunResult = 'idle' | 'succeeded' | 'failed' | 'lease_lost';
 type Input = { session_id: string; message_id: string | null; base_resume_revision_id: string; base_content_hash: string; chat_provider_mode?: string };
 type Job = { company_name: string; title: string; content_text: string; requirements: JobRequirement[]; content_source?: 'summary' | 'pasted' };
@@ -68,12 +69,13 @@ function loadContext(deps: TailorWorkerDeps, task: LeasedTask): Context | string
   const checked = latestChecks(deps, ws, input.session_id);
   // 답변 턴: 붙여넣은 본문에는 요구 목록이 없으므로 직전 JD 점검이 읽은 요구를 수정안 작성에 넘긴다(JD 점검 턴은 본문에서 다시 읽는다).
   const carried: JobRequirement[] = input.message_id === null ? [] : checked.map((item, index) => ({ id: item.requirement_id ?? `req_c${index + 1}`, text: item.requirement, importance: item.importance, source_quote: item.requirement }));
+  const snapshotRequirements = JSON.parse(String(job.requirements_json)) as JobRequirement[];
   return {
     input, ...messages, blocks: JSON.parse(String(base.blocks_json)) as ResumeBlock[], facts: JSON.parse(String(facts.facts_json)) as FactLike[],
     // 붙여넣은 공고 본문이 있으면 그 글을 쓴다. 스냅샷의 요구 목록은 요약 기준이라 비우고 본문에서 다시 읽는다(S1-28).
     job: typeof session.job_text === 'string' && session.job_text
       ? { company_name: String(job.company_name), title: String(job.title), content_text: session.job_text, requirements: carried, content_source: 'pasted' }
-      : { company_name: String(job.company_name), title: String(job.title), content_text: String(job.content_text), requirements: JSON.parse(String(job.requirements_json)) as JobRequirement[] },
+      : { company_name: String(job.company_name), title: String(job.title), content_text: String(job.content_text), requirements: snapshotRequirements.length > 0 ? snapshotRequirements : carried },
     checks: checked.map(({ requirement, importance, status, note }) => ({ requirement, importance, status, note })),
   };
 }
@@ -113,7 +115,7 @@ export async function runTailorTask(deps: TailorWorkerDeps, taskId?: string): Pr
   if (!markDispatched(deps, task)) return holdsLease(deps, task) ? failWith('CANCELED_BY_USER') : 'lease_lost';
 
   const result = await runTailorPipeline({
-    chat: deps.provider, stages: deps.stages ?? null, taskId: task.taskId, now: deps.now,
+    chat: deps.provider, stages: deps.stages ?? null, research: deps.research ?? null, taskId: task.taskId, now: deps.now,
     report: progress => saveProgress(deps, task, context.input.session_id, progress),
     invoke: work => withHeartbeat(deps, task, work),
     call: { workspaceId: task.workspaceId, taskId: task.taskId, leaseGeneration: task.generation },

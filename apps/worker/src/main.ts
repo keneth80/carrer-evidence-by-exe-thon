@@ -4,7 +4,7 @@ import { openDatabase } from '../../../packages/db/src/index.ts';
 import { readConfig, readLinerApiKey } from '../../api/src/config.ts';
 import { createMockSearchProvider } from '../../../packages/search/src/provider.ts';
 import type { SearchProvider } from '../../../packages/search/src/provider.ts';
-import { createLinerWebSearchProvider } from '../../../packages/liner/src/web-search.ts';
+import { createLinerResearchProvider, createLinerWebSearchProvider } from '../../../packages/liner/src/web-search.ts';
 import { createLinerLedger } from './liner-ledger.ts';
 import { runSearchTask } from './search-task.ts';
 import type { SearchWorkerDeps } from './search-task.ts';
@@ -48,7 +48,9 @@ const review = { db, owner, leaseMs: config.limits.tailorLeaseMs, now: Date.now,
 // 단계별(staged)이면 턴마다 유료 호출이 1~2건(첫 턴: AI 점검, 답변 턴: 초안 + 근거 검토) 쓰인다(S1-17).
 const supplement = { db, owner, leaseMs: config.limits.tailorLeaseMs, now: Date.now, provider: linerChat ? createLinerSupplementProvider(linerChat) : createMockSupplementProvider(), pipeline: config.supplementPipeline };
 // 공고 맞춤 대화(S1-18)는 단계별로 돈다: JD 점검 턴 = AI 점검 1건, 답변 턴 = 수정안 작성 + 근거 검토 2건(같은 대화 원장 purpose=chat).
-const tailor = { db, owner, leaseMs: config.limits.tailorLeaseMs, now: Date.now, provider: chatProvider, stages: linerChat ? createLinerTailorStageProvider(linerChat) : createMockTailorStageProvider() };
+// 보충 검색(S1-29): 실시간 검색과 실호출 대화가 모두 켜져 있을 때만, 공고 검색과 같은 원장 한도(purpose=search) 안에서 쓴다.
+const research = config.liner && linerChat ? createLinerResearchProvider({ apiKey: readLinerApiKey(), fetch, ledger: createLinerLedger({ db, owner, now: Date.now, ...config.liner }) }) : null;
+const tailor = { db, owner, leaseMs: config.limits.tailorLeaseMs, now: Date.now, provider: chatProvider, stages: linerChat ? createLinerTailorStageProvider(linerChat) : createMockTailorStageProvider(), research };
 const render = { db, owner, leaseMs: config.limits.renderLeaseMs, now: Date.now, store: createObjectStore(config.objectDir) };
 const observe = { db, owner, leaseMs: config.limits.observeLeaseMs, now: Date.now };
 const sweep = { db, now: Date.now, reportTimeoutMs: config.limits.dispatchReportTimeoutMs };

@@ -25,6 +25,7 @@
 | 기능 | Liner API | 코드 | 켜는 설정 |
 |---|---|---|---|
 | 공고 검색(출처 포함) | Web Search `POST /api/v1/tools/search/web` | `packages/liner/src/web-search.ts` | `LINER_MODE=live` |
+| JD 점검의 보충 검색(요약뿐인 공고 내용, 회사 참고 정보) | Web Search(같은 원장 한도) | `packages/tailor/src/research.ts`, `packages/liner/src/web-search.ts` | `LINER_MODE=live` + `CHAT_MODE=liner` |
 | 이력서 AI 점검 | Router `POST /api/v1/chat/completions` (`liner-claude-router`, JSON schema 응답) | `packages/liner/src/review.ts` | `CHAT_MODE=liner` |
 | 기본 이력서 보완 대화(점검·초안·근거 검토 단계 분리) | Router chat completions | `packages/liner/src/supplement.ts` | `CHAT_MODE=liner` |
 | 공고(JD) 맞춤 점검(질문)·수정안 근거 검토 | Router chat completions(단계별 별도 호출) | `packages/liner/src/tailor-stages.ts` | `CHAT_MODE=liner` |

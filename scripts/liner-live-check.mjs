@@ -2,14 +2,14 @@ import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { readConfig, readLinerApiKey } from '../apps/api/src/config.ts';
-import { createLinerWebSearchProvider } from '../packages/liner/src/web-search.ts';
+import { createLinerWebSearchProvider, linerQueries } from '../packages/liner/src/web-search.ts';
 import { createLinerLedger, readLinerUsage } from '../apps/worker/src/liner-ledger.ts';
 import { runSearchTask } from '../apps/worker/src/search-task.ts';
 import { startApi, login, client } from '../tests/helpers/s01-harness.mjs';
 import { confirmFixture, createSearch, jobsOf, workerDeps } from '../tests/helpers/s02-harness.mjs';
 
 // S03 Liner live 실호출 확인(유료). 합성 이력서 1개를 실제 API 경로로 확정하고 검색 작업 1건을 live worker로 실행한다.
-// - 한 번 실행에 Liner 요청은 최대 2건이다. 호출 수·예산 한도는 아래 원장 DB에 누적되므로 여러 번 실행해도 합계로 막힌다.
+// - 한 번 실행에 Liner 요청은 최대 5건이다(채용 사이트 묶음 4 + 열린 검색 1). 호출 수·예산 한도는 아래 원장 DB에 누적되므로 여러 번 실행해도 합계로 막힌다.
 // - API 키는 존재 여부만 출력한다. 포트를 쓰지 않는 임시 서버(127.0.0.1:임의 포트)로 돌려 실행 중인 개발 서버와 겹치지 않는다.
 // 사용: LINER_MODE=live LINER_MAX_CALLS=20 LINER_BUDGET_MICRO_USD=10000000 node --env-file-if-exists=.env scripts/liner-live-check.mjs [--usage] [--resume=frontend|backend]
 //   --usage  원장 사용량만 출력하고 호출하지 않는다.
@@ -45,7 +45,7 @@ try {
     const http = client(api, await login(api, `liner-check-${Date.now()}`));
     const { revision } = await confirmFixture(api, http, resumeArg);
     const search = await createSearch(http, revision.id);
-    console.log(`검색어(합성 이력서 ${resumeArg}, 앞 2개만 전송): ${search.intent.queries.slice(0, 2).map(item => `"${item.query} 채용"`).join(', ')}`);
+    console.log(`검색어(합성 이력서 ${resumeArg}): ${linerQueries(search.intent.queries).map(item => `"${item}"`).join(', ')}`);
     const owner = `liner-check-${randomUUID()}`;
     const ledger = createLinerLedger({ db: api.db, owner, now: Date.now, ...config.liner });
     const provider = createLinerWebSearchProvider({ apiKey: readLinerApiKey(process.env), fetch: globalThis.fetch, ledger });

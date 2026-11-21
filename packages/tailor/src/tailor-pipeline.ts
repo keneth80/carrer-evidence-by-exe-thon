@@ -2,6 +2,8 @@ import { checkRequirements, JD_LIMITS, screenAssessments, screenExtractedRequire
 import type { CriticChange, JdFinding, RequirementCheck, TailorStageProvider } from './jd-check.ts';
 import { isChatOutput } from './provider.ts';
 import type { ChatCallContext, ChatJob, ChatOutput, ChatProvider, ChatRequirementCheck, ChatTurn } from './provider.ts';
+import { researchJob } from './research.ts';
+import type { ResearchProvider } from './research.ts';
 import { guardReason, screenChanges } from './screen-changes.ts';
 import { createTracker, LeaseLost } from './stage-tracker.ts';
 import type { StageSummary, Tracker, Transmission, TurnProgress } from './stage-tracker.ts';
@@ -24,7 +26,7 @@ export type TailorPipelineSummary = {
 };
 export type TailorTurn = { kind: 'jd_check' | 'answer'; requirements: RequirementCheck[]; findings: JdFinding[]; pipeline: TailorPipelineSummary };
 export type TailorPipelineDeps = {
-  chat: ChatProvider; stages: TailorStageProvider | null; taskId: string; now: () => number;
+  chat: ChatProvider; stages: TailorStageProvider | null; research?: ResearchProvider | null; taskId: string; now: () => number;
   report: (progress: TurnProgress<TailorStageKey>) => boolean;
   invoke: <T>(work: (signal: AbortSignal) => Promise<T>) => Promise<T>;
   call?: ChatCallContext;
@@ -50,8 +52,17 @@ function summary(deps: TailorPipelineDeps, t: T, extra: Omit<TailorPipelineSumma
 type Matched = { checks: RequirementCheck[]; job: ChatJob; extracted: number; failed: string | null };
 
 // ① 요구사항 대조. 공고에 요구 목록이 없고 추출 provider가 있으면 먼저 공고 글에서 요구를 뽑는다.
-async function matchRequirements(deps: TailorPipelineDeps, input: TailorPipelineInput, t: T): Promise<Matched> {
+async function matchRequirements(deps: TailorPipelineDeps, source: TailorPipelineInput, t: T): Promise<Matched> {
   t.set('match', 'running');
+  // 정보가 부족하면 먼저 검색으로 보충한다(S1-29): 요약뿐인 공고 글, 회사 참고 정보. 실패해도 점검은 계속한다.
+  const researched = deps.research ? await researchJob(deps.research, source.job, work => t.call(work), deps.call) : null;
+  const input = researched ? { ...source, job: researched.job } : source;
+  const found = await matchWith(deps, input, t);
+  if (researched?.note) t.set('match', found.failed ? 'failed' : 'done', `${t.summary().find(stage => stage.key === 'match')?.note ?? ''} · ${researched.note}`);
+  return found;
+}
+
+async function matchWith(deps: TailorPipelineDeps, input: TailorPipelineInput, t: T): Promise<Matched> {
   const extract = deps.stages?.extract;
   if (input.job.requirements.length > 0 || !extract) {
     const checks = await assess(deps, input, input.job, checkRequirements(input.facts, input.job), t);
@@ -71,7 +82,7 @@ async function matchRequirements(deps: TailorPipelineDeps, input: TailorPipeline
   return { checks: checks.checks, job, extracted: requirements.length, failed: null };
 }
 
-const sourceName = (job: ChatJob) => job.content_source === 'pasted' ? '붙여넣은 공고 본문' : '공고 글';
+const sourceName = (job: ChatJob) => job.content_source === 'pasted' ? '붙여넣은 공고 본문' : job.content_source === 'searched' ? '공고 글(검색 보충)' : '공고 글';
 
 // 근거 판정(S1-28): 규칙 대조 결과를 HR 판정 호출이 요구마다 다시 본다. 실패하면 규칙 대조 결과를 그대로 쓰고 그 사실을 단계 기록에 남긴다.
 async function assess(deps: TailorPipelineDeps, input: TailorPipelineInput, job: ChatJob, checks: RequirementCheck[], t: T): Promise<{ checks: RequirementCheck[]; note: string }> {
@@ -110,7 +121,7 @@ async function jdCheckTurn(deps: TailorPipelineDeps, input: TailorPipelineInput,
   const source = extracted > 0 ? (pasted ? `붙여넣은 공고 본문에서 요구사항 ${extracted}개를 읽어 확정 경력과 대조했어요(${counts}).` : `공고 글(검색 요약)에서 요구사항 ${extracted}개를 읽어 확정 경력과 대조했어요(${counts}). 요약에서 읽은 목록이라 공고 원문과 다를 수 있어요.`) : `요구사항 ${checks.length}개를 확정 경력과 대조했어요(${counts}).`;
   const reply = checks.length === 0
     ? `${extractFailed ? `공고에서 요구사항을 읽지 못했어요(${extractFailed}).` : '이 공고 글에서는 대조할 요구사항을 찾지 못했어요.'} ${NO_TABLE}`
-    : screened?.reply ? (extracted > 0 ? `${screened.reply}\n\n${pasted ? '(요구사항은 붙여넣은 공고 본문에서 읽었어요.)' : '(요구사항은 검색 요약에서 읽었어요. 공고 원문과 다를 수 있어요. 공고 본문을 붙여넣으면 더 정확해요.)'}` : screened.reply)
+    : screened?.reply ? (extracted > 0 ? `${screened.reply}\n\n${pasted ? '(요구사항은 붙여넣은 공고 본문에서 읽었어요.)' : job.content_source === 'searched' ? '(공고 요약이 짧아 같은 공고를 검색해 내용을 보충하고 요구사항을 읽었어요. 원문과 다를 수 있으니 공고 본문을 붙여넣으면 더 정확해요.)' : '(요구사항은 검색 요약에서 읽었어요. 공고 원문과 다를 수 있어요. 공고 본문을 붙여넣으면 더 정확해요.)'}` : screened.reply)
     : failed ? `${source} HR 전문가 점검은 하지 못했어요(${failed}). 근거가 약한 요구를 직접 말씀해 주시면 수정안을 만들어 드릴게요.` : `${source} 근거가 약한 요구에 대해 알려 주시면 수정안을 만들어 드릴게요.`;
   const questions = [...new Set([...findings.map(item => item.question), ...(screened?.questions ?? [])])].slice(0, JD_LIMITS.questions);
   const turn: TailorTurn = { kind: 'jd_check', requirements: checks, findings, pipeline: summary(deps, t, { requirements_checked: checks.length, ai_findings: findings.length, changes_reviewed: 0, dropped_changes: [], changes_withheld: false }) };

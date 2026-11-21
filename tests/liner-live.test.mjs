@@ -8,7 +8,7 @@ import { routeRequest } from '../apps/api/src/server.ts';
 import { runSearchTask } from '../apps/worker/src/search-task.ts';
 import { createLinerLedger, readLinerUsage } from '../apps/worker/src/liner-ledger.ts';
 import {
-  createLinerWebSearchProvider, companyFromTitle, isJobPosting, linerQueries, toJobDraft, dedupeKey, LINER_SEARCH_URL,
+  createLinerWebSearchProvider, companyFromTitle, compactQuery, isJobPosting, isRecruitSite, linerQueries, linerQueryPlan, toJobDraft, dedupeKey, wrappedSiteId, LINER_MAX_QUERIES, LINER_SEARCH_URL,
 } from '../packages/liner/src/web-search.ts';
 import { tempFolder, startApi, login, client } from './helpers/s01-harness.mjs';
 import { confirmFixture, createSearch, jobsOf, workerDeps } from './helpers/s02-harness.mjs';
@@ -75,12 +75,13 @@ test('live search sends the spec request with the key only in a header and maps 
     const fetch = fakeFetch(() => json(SYNTHETIC_RESPONSE));
     assert.equal(await runSearchTask(liveWorker(api, fetch)), 'succeeded');
 
-    assert.equal(fetch.calls.length, 2, 'at most two queries per search run');
+    assert.equal(fetch.calls.length, LINER_MAX_QUERIES, 'recruiting-site groups plus one open query per search run');
+    const planned = linerQueryPlan(search.intent.queries);
     fetch.calls.forEach((call, index) => {
       assert.equal(call.url, LINER_SEARCH_URL);
       assert.equal(call.init.method, 'POST');
       assert.deepEqual(call.init.headers, { 'x-api-key': KEY, 'Content-Type': 'application/json' });
-      assert.deepEqual(call.body, { query: `${search.intent.queries[index].query} 채용`, country_code: 'KR', lang: 'ko', date_range: 'past_month', max_results: 10, include_knowledge: false });
+      assert.deepEqual(call.body, { query: planned[index].query, country_code: 'KR', lang: 'ko', date_range: 'past_month', max_results: 10, include_knowledge: false });
       assert.ok(!call.init.body.includes(KEY), 'key is never in the body');
       assert.ok(call.init.signal instanceof AbortSignal, 'every call can be aborted');
     });
@@ -90,10 +91,11 @@ test('live search sends the spec request with the key only in a header and maps 
     assert.equal(run.outcome, 'complete');
     assert.deepEqual(jobs.map(job => job.canonical_url), [
       'https://www.wanted.co.kr/wd/900001',
-      'https://careers.virtual-commerce.test/jobs/42',
+      // 채용 사이트 공고가 회사 채용 페이지보다 먼저 온다(2026-11-21).
       'https://www.saramin.co.kr/zf_user/jobs/relay/view?rec_idx=1',
+      'https://careers.virtual-commerce.test/jobs/42',
     ], 'non-job pages and unsafe urls are dropped; duplicates across results and queries are merged');
-    assert.deepEqual(jobs.map(job => job.company_name), ['합성랩스', '가상커머스', 'www.saramin.co.kr'], 'company only from explicit title wording, otherwise hostname');
+    assert.deepEqual(jobs.map(job => job.company_name), ['합성랩스', 'www.saramin.co.kr', '가상커머스'], 'company only from explicit title wording, otherwise hostname');
     for (const job of jobs) {
       assert.equal(job.data_origin, 'live');
       assert.match(job.job_key, /^liner:[0-9a-f]{32}$/);
@@ -102,12 +104,12 @@ test('live search sends the spec request with the key only in a header and maps 
       assert.equal(job.open_status, 'unknown');
     }
     assert.equal(jobs[0].content_text, SYNTHETIC_RESPONSE.results[0].description);
-    assert.equal(jobs[2].content_text, '프론트엔드 개발자 모집', 'an empty snippet falls back to the title, never invented text');
+    assert.equal(jobs[1].content_text, '프론트엔드 개발자 모집', 'an empty snippet falls back to the title, never invented text');
 
     const task = await taskOf(http, search.taskId);
     assert.equal(task.provider_transmission, 'completed');
     const rows = ledgerRows(api);
-    assert.equal(rows.length, 2);
+    assert.equal(rows.length, LINER_MAX_QUERIES);
     rows.forEach((row, index) => {
       assert.equal(row.status, 'succeeded');
       assert.equal(row.purpose, 'search');
@@ -117,7 +119,7 @@ test('live search sends the spec request with the key only in a header and maps 
       assert.equal(row.verified_micro_usd, 1000);
       assert.equal(row.request_hash, sha256(fetch.calls[index].init.body));
     });
-    assert.deepEqual(readLinerUsage(api.db), { calls: 2, reserved_micro_usd: 4000, verified_micro_usd: 2000, unknown_calls: 0 });
+    assert.deepEqual(readLinerUsage(api.db), { calls: LINER_MAX_QUERIES, reserved_micro_usd: 2000 * LINER_MAX_QUERIES, verified_micro_usd: 1000 * LINER_MAX_QUERIES, unknown_calls: 0 });
     assert.ok(!JSON.stringify(rows).includes(KEY));
   } finally { await env.done(); }
 });
@@ -127,27 +129,27 @@ test('call limit is global: the call past LINER_MAX_CALLS is refused before any 
   try {
     const { api, http, revision } = env;
     const fetch = fakeFetch(() => json(SYNTHETIC_RESPONSE));
-    const deps = () => liveWorker(api, fetch, { maxCalls: 3 });
+    const deps = () => liveWorker(api, fetch, { maxCalls: LINER_MAX_QUERIES + 1 });
     const first = await createSearch(http, revision.id);
     assert.equal(await runSearchTask(deps(), first.taskId), 'succeeded');
-    assert.equal(fetch.calls.length, 2);
+    assert.equal(fetch.calls.length, LINER_MAX_QUERIES);
 
     // 두 번째 사용자도 같은 개발 계정 한도를 쓴다.
     const bob = client(api, await login(api, 'bob'));
     const bobRevision = (await confirmFixture(api, bob, 'frontend')).revision;
     const second = await createSearch(bob, bobRevision.id);
     assert.equal(await runSearchTask(deps(), second.taskId), 'succeeded');
-    assert.equal(fetch.calls.length, 3, 'only one more call fits under the limit');
+    assert.equal(fetch.calls.length, LINER_MAX_QUERIES + 1, 'only one more call fits under the limit');
     const partial = (await jobsOf(bob, second.searchId)).search;
     assert.equal(partial.outcome, 'partial');
 
     const third = await createSearch(http, revision.id);
     assert.equal(await runSearchTask(deps(), third.taskId), 'failed');
-    assert.equal(fetch.calls.length, 3, 'refused call never reaches fetch');
+    assert.equal(fetch.calls.length, LINER_MAX_QUERIES + 1, 'refused call never reaches fetch');
     const task = await taskOf(http, third.taskId);
     assert.equal(task.error_code, 'LINER_CALL_LIMIT');
     assert.equal(task.provider_transmission, 'not_dispatched');
-    assert.equal(ledgerRows(api).length, 3);
+    assert.equal(ledgerRows(api).length, LINER_MAX_QUERIES + 1);
   } finally { await env.done(); }
 });
 
@@ -307,7 +309,17 @@ test('mapping helpers: job signals, explicit company names, privacy-filtered que
     { query: '프론트엔드 개발자 React', fact_ids: ['f2'] },
     { query: 'Next.js 채용', fact_ids: ['f3'] },
     { query: 'Storybook', fact_ids: ['f4'] },
-  ]), ['프론트엔드 개발자 React 채용', 'Next.js 채용'], 'contact info is never sent, at most two queries, 채용 is not repeated');
+  ]), [
+    '프론트엔드 개발자 React 채용 site:wanted.co.kr',
+    '프론트엔드 개발자 React 채용 site:jobkorea.co.kr OR site:saramin.co.kr',
+    '프론트엔드 개발자 React 채용 site:jumpit.saramin.co.kr OR site:rallit.com OR site:jobplanet.co.kr',
+    '프론트엔드 개발자 React 채용 site:linkedin.com/jobs',
+    'Next.js 채용',
+  ], 'contact info is never sent; recruiting-site groups first, then one open query; 채용 is not repeated');
+  // 검색어는 직무 + 기술 하나로 줄인다(긴 검색어에 site:를 붙이면 결과가 없었다).
+  assert.equal(compactQuery('합성 개발 리드 · 시니어 풀스택 엔지니어 React Next.js TypeScript'), '풀스택 엔지니어 React');
+  assert.equal(compactQuery('회계 결산 담당'), '회계 결산');
+  assert.equal(compactQuery('Frontend Developer React'), 'Frontend Developer');
 });
 
 test('config: live needs key and both caps, errors never echo the key; mock default is unchanged', async () => {
@@ -362,4 +374,63 @@ test('mock mode stays the default: mock search runs never call fetch and keep sy
     assert.ok(jobs.length > 0 && jobs.every(job => job.data_origin === 'synthetic'));
     assert.equal(ledgerRows(api).length, 0);
   } finally { await api.stop(); cleanup(); }
+});
+
+// 사용자 요청(2026-11-21): 회사 자체 채용 페이지는 사이트 안에서 다시 검색해야 해서 공고 본문을 읽기 어렵다 → 채용 사이트 우선.
+test('채용 사이트 우선: 채용 사이트 공고를 먼저 두고, 같은 공고는 채용 사이트 쪽을 남긴다. 리뷰·피드 경로는 공고로 보지 않는다', async () => {
+  const u = value => new URL(value);
+  assert.equal(isRecruitSite(u('https://www.wanted.co.kr/wd/1')), true);
+  assert.equal(isRecruitSite(u('https://www.linkedin.com/jobs/view/1')), true);
+  assert.equal(isRecruitSite(u('https://www.linkedin.com/posts/someone')), false);
+  assert.equal(isRecruitSite(u('https://www.jobplanet.co.kr/job/search?posting_ids%5B%5D=1')), true);
+  assert.equal(isRecruitSite(u('https://career.rememberapp.co.kr/job/posting/1')), true);
+  assert.equal(isRecruitSite(u('https://careers.synth-company.example/jobs/1')), false);
+  assert.equal(isJobPosting('합성랩 백엔드 개발자 채용', u('https://www.jobplanet.co.kr/job/search?posting_ids%5B%5D=1'), '합성 공고'), true);
+  assert.equal(isJobPosting('합성랩 백엔드 개발자 기업 리뷰', u('https://www.jobplanet.co.kr/companies/1/reviews'), '합성 리뷰'), false, 'company review page is not a posting');
+  assert.equal(isJobPosting('합성랩 백엔드 개발자 채용', u('https://www.rallit.com/positions/1/backend'), ''), true);
+  assert.equal(isJobPosting('합성랩 백엔드 개발자 채용', u('https://www.google.com/goto?url=abc'), '합성 공고'), false, 'search-engine redirect link');
+  assert.equal(isJobPosting('합성랩 백엔드 개발자 모집', u('https://www.threads.com/@synthetic/post/1'), '합성 공고'), false, 'social post');
+
+  const results = [
+    { title: '합성모빌리티 채용 - 웹 개발자', url: 'https://careers.synth-mobility.example/jobs/web', description: '합성 공고' },
+    { title: '[합성랩] 프론트엔드 개발자 채용', url: 'https://careers.synth-lab.example/jobs/fe', description: '합성 공고' },
+    { title: '[합성랩] 프론트엔드 개발자 채용', url: 'https://www.wanted.co.kr/wd/100', description: '합성 공고' },
+    { title: '[합성핀] 백엔드 개발자 채용', url: 'https://www.jobkorea.co.kr/Recruit/GI_Read/200', description: '합성 공고' },
+  ];
+  const ledger = { reserve: () => ({ ok: true, callId: 'c1' }), dispatch: () => true, settle: () => undefined };
+  const fetchFn = async () => new Response(JSON.stringify({ results }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  const provider = createLinerWebSearchProvider({ apiKey: 'test-key-recruit-first', fetch: fetchFn, ledger });
+  const found = await provider.search({ queries: [{ query: '프론트엔드 개발자', fact_ids: ['f1'] }], maxCandidates: 10, call: { workspaceId: 'w', taskId: 't', leaseGeneration: 1 } });
+  assert.deepEqual(found.jobs.map(job => job.site_id), ['www.wanted.co.kr', 'www.jobkorea.co.kr', 'careers.synth-mobility.example'], 'recruiting sites first; the company-page duplicate is dropped');
+});
+
+// 실호출 비교(2026-11-21): 결과의 절반 이상이 검색 엔진 경유 링크(google.com/goto)였다. site: 조건으로 찾은 것만 받아들이고 출처에 밝힌다.
+test('검색 경유 링크: 채용 사이트 검색에서 온 공고만 받고, 사람 프로필·목록 페이지·열린 검색의 경유 링크는 뺀다', () => {
+  const wrapped = 'https://www.google.com/goto?url=SYNTHETIC&gsessionid=x';
+  const sites = ['jobkorea.co.kr', 'saramin.co.kr'];
+  const kept = toJobDraft({ title: '합성핀 채용 - 풀스택 개발자 채용 (경력 3년 이상)', url: wrapped, description: '모집분야. 풀스택 개발자 ; 경력. 경력(3년이상)', sites });
+  assert.equal(kept.site_id, wrappedSiteId(sites));
+  assert.equal(kept.site_id, 'jobkorea.co.kr·saramin.co.kr (검색 경유 링크)');
+  assert.equal(toJobDraft({ title: '합성핀 채용 - 풀스택 개발자 채용', url: wrapped, description: '모집분야. 풀스택 개발자' }), null, 'open-query wrapped link has no known site');
+  assert.equal(toJobDraft({ title: '가상인 님 - 프로덕트 개발자 | Product Developer', url: wrapped, description: '기술 스택: React. 학력. 합성대학교', sites }), null, 'person profile');
+  assert.equal(toJobDraft({ title: 'Full Stack Engineer (React/TypeScript) at Synth AI', url: wrapped, description: 'We are hiring a full stack engineer.', sites: ['linkedin.com/jobs'] }), null, 'no Hangul: overseas posting');
+  assert.equal(isJobPosting('148 engineering jobs in Seoul, South Korea', new URL('https://www.synth-board.example/Job/seoul-engineering-jobs'), '합성 목록'), false, 'listing page');
+  assert.equal(wrappedSiteId(['linkedin.com/jobs']), 'linkedin.com (검색 경유 링크)');
+});
+
+// 마무리(2026-11-21): 해외 한인 구인 글·해외 목록 사이트 제외, 채용 사이트 제목·요약 형식에서 회사 이름 읽기.
+test('해외 구인 글은 빼고, 채용 사이트의 제목·요약 형식에서 회사 이름을 읽는다', () => {
+  const u = value => new URL(value);
+  assert.equal(isJobPosting('차량처리센터 시스템 운영 팀리더(Development Team Lead) 채용', u('https://ktown.koreadaily.com/jobs/1'), '합성 구인 글'), false, 'overseas Korean classifieds host');
+  assert.equal(isJobPosting('148 engineering jobs in Seoul', u('https://www.glassdoor.ie/Job/seoul'), '합성 목록'), false);
+  assert.equal(isJobPosting('합성무역 백엔드 개발자 채용', u('https://careers.synth-trade.example/jobs/1'), '미국 현지 법인에서 근무할 개발자를 찾습니다. 취업 비자 지원'), false, 'overseas work on a company page');
+  assert.equal(isJobPosting('합성무역 백엔드 개발자 채용', u('https://www.wanted.co.kr/wd/1'), '미국 현지 고객을 상대합니다'), true, 'recruiting-site postings stay');
+  assert.equal(isJobPosting('합성무역 백엔드 개발자 채용', u('https://careers.synth-trade.example/jobs/2'), '서울 본사에서 근무합니다'), true);
+
+  assert.equal(companyFromTitle('합성디 [합성캔버스] 프론트엔드 엔지니어 (Product) 채용'), '합성디');
+  assert.equal(companyFromTitle('합성테크놀로지스-AI Platform Engineer(AI 플랫폼)'), '합성테크놀로지스');
+  assert.equal(companyFromTitle('웹 풀스택 개발자 채용 공고', '주식회사합성그룹, 웹 풀스택 개발자 채용 공고, 경력:경력무관, 학력:학력무관'), '합성그룹');
+  assert.equal(companyFromTitle('AI 기반 풀스택 개발자 채용 (Flutter·React)', '모집분야. 풀스택 개발자 ; 경력. 경력(3년이상)'), null, 'no company wording: stays unknown');
+  assert.equal(companyFromTitle('풀스택 개발자 채용', '경력 3년 이상, 급여: 회사 내규에 따름'), null, 'a requirement phrase is not a company');
+  assert.equal(companyFromTitle('Synthlux Full Stack Engineer — 서울, 대한민국', '서울, 대한민국에서 풀스택 엔지니어를 채용합니다'), null, 'a location at the start of the summary is not a company');
 });
