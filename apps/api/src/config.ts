@@ -77,7 +77,8 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env) {
       pastedCharacters: 100_000,
       jsonBodyBytes: 1024 * 1024,
       sessionTtlMs: 7 * 24 * 60 * 60 * 1000,
-      extractionLeaseMs: 120_000,
+      // PDF 읽기(20초) + 스캔본 글자 인식(100초) + 항목 구성 호출(90초)이 한 lease 안에 끝나야 한다.
+      extractionLeaseMs: 240_000,
       // 검색 worker lease. heartbeat가 leaseMs/3마다 연장하며, 끊기면 만료 후 다른 worker가 다시 집는다.
       searchLeaseMs: 30_000,
       workerPollMs: 1_000,
