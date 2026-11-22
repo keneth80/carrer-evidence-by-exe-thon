@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import type { SourceText } from './source.ts';
+import { pageText } from './pdf-layout.ts';
 
 export const PDF_LIMITS = { maxPages: 30, maxCharacters: 200_000 } as const;
 
@@ -17,7 +18,7 @@ function pdfjsAssetDir(name: 'cmaps' | 'standard_fonts'): string {
   return join(dirname(require.resolve('pdfjs-dist/package.json')), name) + '/';
 }
 
-type TextItem = { str?: string; hasEOL?: boolean };
+type TextItem = { str?: string; hasEOL?: boolean; transform?: number[]; width?: number; height?: number };
 
 // 키나 네트워크 없이 로컬에서 텍스트 레이어만 읽는다. 스캔 이미지 PDF는 OCR 없이 빈 텍스트가 된다.
 export async function extractPdfText(bytes: Uint8Array): Promise<SourceText> {
@@ -46,12 +47,12 @@ export async function extractPdfText(bytes: Uint8Array): Promise<SourceText> {
     for (let number = 1; number <= document.numPages; number++) {
       const page = await document.getPage(number);
       const content = await page.getTextContent();
-      let text = '';
-      for (const item of content.items as TextItem[]) {
-        text += item.str ?? '';
-        if (item.hasEOL) text += '\n';
-      }
-      text = text.normalize('NFC');
+      // 글자 조각의 위치를 함께 읽는다. 그린 순서가 뒤섞인 PDF(표·단·글상자)는 화면 위치로 다시 맞춘다(pdf-layout.ts).
+      const pieces = (content.items as TextItem[]).filter(item => typeof item.str === 'string').map(item => ({
+        str: item.str as string, x: item.transform?.[4] ?? 0, y: item.transform?.[5] ?? 0, width: item.width ?? 0,
+        height: item.height || Math.abs(item.transform?.[3] ?? 0), eol: item.hasEOL,
+      }));
+      const text = pageText(pieces).text.normalize('NFC');
       total += text.length;
       if (total > PDF_LIMITS.maxCharacters) throw new ExtractionError('PDF_TEXT_TOO_LARGE', '추출한 글자 수가 한도를 넘었습니다.');
       pages.push({ page: number, text });

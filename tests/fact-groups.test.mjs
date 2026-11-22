@@ -133,6 +133,9 @@ test('other items are grouped under the source heading above them instead of one
   const sections = sectionTitles(facts, source, warnings);
   assert.deepEqual(sections, ['경력사항', '경력사항', '업무 접근 방식', '업무 접근 방식', '강점']);
   assert.deepEqual(factGroups(facts, sections).map(group => [group.title, group.indexes]), [['예시랩', [0, 1]], ['업무 접근 방식', [2, 3]], ['강점', [4]]]);
+  // 제목이 '학력'이면 학력 분류 묶음과 합친다.
+  const school = [fact('s', 'education', '예시대학교'), fact('p', 'period', '2010.03 ~ 2014.02')];
+  assert.deepEqual(factGroups(school, ['학력', '학력']).map(group => [group.title, group.indexes]), [['학력', [0, 1]]]);
   // 제목 정보가 없으면 예전처럼 마지막 회사에 붙는다(mock·규칙 결과).
   assert.deepEqual(factGroups(facts).map(group => group.indexes), [[0, 1, 2, 3, 4]]);
   assert.deepEqual(sectionTitles(facts, null, warnings), [null, null, null, null, null]);

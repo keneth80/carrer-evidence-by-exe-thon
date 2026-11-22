@@ -1,6 +1,6 @@
 import { checkRequirements, JD_LIMITS, screenAssessments, screenExtractedRequirements, screenJdReview } from './jd-check.ts';
 import type { CriticChange, JdFinding, RequirementCheck, TailorStageProvider } from './jd-check.ts';
-import { isChatOutput } from './provider.ts';
+import { isChatOutput, chatOutputProblem } from './provider.ts';
 import type { ChatCallContext, ChatJob, ChatOutput, ChatProvider, ChatRequirementCheck, ChatTurn } from './provider.ts';
 import { researchJob } from './research.ts';
 import type { ResearchProvider } from './research.ts';
@@ -159,7 +159,7 @@ async function answerTurn(deps: TailorPipelineDeps, input: TailorPipelineInput, 
   t.set('draft', 'running');
   const drafted = await t.call(signal => deps.chat.respond({ job: input.job, facts: input.facts, blocks: input.blocks, history: input.history, message, checks: input.checks, signal, call: deps.call }));
   if (!drafted.ok) { t.set('draft', 'failed', `실패(${drafted.code})`); return { kind: 'failed', code: drafted.code, transmission: t.transmission() }; }
-  if (!isChatOutput(drafted.value)) { t.set('draft', 'failed', '실패(CHAT_OUTPUT_INVALID)'); return { kind: 'failed', code: 'CHAT_OUTPUT_INVALID', transmission: t.transmission() }; }
+  if (!isChatOutput(drafted.value)) { console.error('TAILOR_DRAFT_INVALID', chatOutputProblem(drafted.value)); t.set('draft', 'failed', '실패(CHAT_OUTPUT_INVALID)'); return { kind: 'failed', code: 'CHAT_OUTPUT_INVALID', transmission: t.transmission() }; }
   const output: ChatOutput = drafted.value;
   const edits = output.changes.filter(change => !change.needs_fact_confirmation);
   t.set('draft', 'done', `수정안 ${edits.length}개, 확인할 사실 ${output.changes.length - edits.length}개`);

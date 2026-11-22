@@ -40,7 +40,11 @@ export function factGroups(facts: FactLike[], sections: (string | null)[] = []):
     }
     const employer = employerOf(at);
     if (employer !== null && !detached(employer)) return employerGroup(employer);
-    if (sections[at]) return { key: `titled:${sections[at]}`, kind: 'section', title: sections[at]! };
+    if (sections[at]) {
+      // 제목이 '학력'·'기술'·'자격'이면 같은 이름의 분류 묶음과 합친다(학력 아래 재학 기간이 따로 떨어지지 않게).
+      const builtIn = Object.entries(SECTION_TITLE).find(([, title]) => title === sections[at]);
+      return builtIn ? { key: `section:${builtIn[0]}`, kind: 'section', title: builtIn[1] } : { key: `titled:${sections[at]}`, kind: 'section', title: sections[at]! };
+    }
     if (employers.length > 0 && at < employers[0]) {
       return category === 'achievement' ? { key: 'results', kind: 'results', title: KEY_RESULTS_SECTION } : { key: 'basic', kind: 'basic', title: '기본 정보·소개' };
     }
