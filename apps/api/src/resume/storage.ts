@@ -32,8 +32,11 @@ export function createObjectStore(rootDir: string): ObjectStore {
         fsyncSync(fd);
       } finally { closeSync(fd); }
       renameSync(temp, path);
-      const dir = openSync(dirname(path), 'r');
-      try { fsyncSync(dir); } finally { closeSync(dir); }
+      // Windows NTFS는 디렉터리 핸들에 대한 fsync(FlushFileBuffers)를 지원하지 않아 EPERM이 발생하므로 POSIX 환경에서만 디렉터리 메타데이터를 동기화한다.
+      if (process.platform !== 'win32') {
+        const dir = openSync(dirname(path), 'r');
+        try { fsyncSync(dir); } finally { closeSync(dir); }
+      }
     },
     read(workspaceId, key) {
       return readFileSync(pathOf(workspaceId, key));

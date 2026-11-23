@@ -7,6 +7,18 @@
 .panel{background:#fff;border:1px solid #dce6e7;border-radius:10px;padding:22px;min-width:0}
 .panel h2{font-size:18px;margin:0 0 14px}
 .panel.narrow{max-width:560px}
+.liner-exchange{margin:12px 0;padding:14px 16px}
+.liner-exchange h2{font-size:15px;margin-bottom:10px}
+.liner-exchange dl{display:flex;flex-wrap:wrap;gap:10px 28px;margin:0;font-size:13px}
+.liner-exchange dl>div{display:flex;gap:8px}
+.liner-exchange dt{color:#63777f}
+.liner-exchange dd{margin:0;font-weight:650}
+.liner-exchange details{margin-top:12px;padding-top:10px;border-top:1px solid #e3eaeb}
+.liner-exchange summary{cursor:pointer;font-size:13px;font-weight:650;color:#2b5f66}
+.liner-messages{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px;margin-top:10px}
+.liner-messages h3{margin:0 0 6px;font-size:14px}
+.liner-messages h4{margin:8px 0 4px;color:#63777f;font-size:12px}
+.liner-messages pre{max-height:240px;overflow:auto;margin:0;padding:10px;border:1px solid #e3eaeb;border-radius:6px;background:#f7faf9;font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
 .inline-form{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-top:12px}
 .inline-form label{display:grid;gap:6px;font-size:13px;font-weight:650}
 .inline-form input{border:1px solid #c8d9d8;border-radius:7px;padding:10px 12px;min-width:220px}
@@ -53,7 +65,13 @@ mark{background:#ffe8a3;color:inherit;border-radius:3px;padding:0 1px}
 .fact-groups{display:grid;gap:14px}
 .fact-group{border:1px solid #cfdcde;border-radius:10px;padding:10px 12px;display:grid;gap:10px;background:#fcfdfd}
 .fact-group-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-.fact-group-head .check{font-size:14px;gap:8px}
+.fact-group-title{display:flex;align-items:center;gap:8px;min-width:0;overflow-wrap:anywhere}
+.fact-group-head :is(h3,h4,h5){margin:0;min-width:0}
+.fact-group-head h3{font-size:17px;color:#175458}
+.fact-group-head :is(h4,h5){font-size:14px}
+.fact-group-section{background:#f3f8f8}
+.fact-group-employer{background:#fff}
+.fact-group-project{background:#f7fafa;border-left:3px solid #79a7a6}
 .fact-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .fact-head select{padding:5px 30px 5px 8px;font-size:12px}
 .check{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:650}
@@ -66,6 +84,7 @@ mark{background:#ffe8a3;color:inherit;border-radius:3px;padding:0 1px}
 .fact-list textarea{width:100%;border:1px solid #d5e1e2;border-radius:6px;padding:8px 10px;resize:vertical;font-size:14px}
 .fact-list textarea[readonly]{background:#f8fafa;border-color:transparent}
 .fact-evidence{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px}
+.fact-draft{margin:3px 0;line-height:1.55;overflow-wrap:anywhere}
 .tag{font-size:11px;font-weight:700;border-radius:4px;padding:2px 7px}
 .tag.extracted{background:#eef3f4;color:#4f666e}
 .tag.edited{background:#fff3dc;color:#906722}

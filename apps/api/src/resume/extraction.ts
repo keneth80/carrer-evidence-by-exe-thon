@@ -5,13 +5,17 @@ import { extractCandidates } from '../../../../packages/resume/src/candidates.ts
 import { normalizePastedText } from '../../../../packages/resume/src/source.ts';
 import type { SourceText } from '../../../../packages/resume/src/source.ts';
 import { formatWarning, parseWarning } from '../../../../packages/resume/src/types.ts';
-import type { ResumeFact } from '../../../../packages/resume/src/types.ts';
+import { REVIEW_SECTIONS } from '../../../../packages/resume/src/types.ts';
+import type { FactReview, ResumeFact } from '../../../../packages/resume/src/types.ts';
+import { checkSupported } from '../../../../packages/tailor/src/guard.ts';
+import { findSlop } from '../../../../packages/tailor/src/slop.ts';
 import { applyStructure, structureContext, structureLines } from '../../../../packages/resume/src/structure.ts';
 import type { StructureProvider } from '../../../../packages/resume/src/structure.ts';
 import { newId, sha256Hex } from '../http.ts';
 import { extractionSourceKey } from './repository.ts';
 import type { DocumentRow } from './repository.ts';
 import type { ObjectStore } from './storage.ts';
+import { validateReviewDraft } from './review-draft.ts';
 
 // extract_resume 작업 실행기. 본문 읽기와 규칙 분류는 로컬이라 lease 만료 후 재실행해도 안전하다.
 // structure가 있으면(CHAT_MODE=liner) 분류·묶음 보정을 위해 유료 호출을 한 번 한다(S1-30). 첫 시도에서만 보내고, 실패하면 규칙 분류 그대로 저장한다.
@@ -22,7 +26,30 @@ export type ExtractionDeps = { db: DatabaseSync; store: ObjectStore; owner: stri
 export const MAX_EXTRACTION_ATTEMPTS = 3;
 
 type Claim = { taskId: string; workspaceId: string; documentId: string; generation: number };
-type Outcome = { status: 'review_required' | 'failed'; facts: ResumeFact[]; warnings: string[]; errorCode: string | null; source: SourceText | null };
+type Outcome = { status: 'review_required' | 'failed'; facts: ResumeFact[]; warnings: string[]; errorCode: string | null; source: SourceText | null; review?: Record<string, FactReview> };
+
+function reviewFor(output: unknown, before: ResumeFact[], after: ResumeFact[], added: { w: number }[]): Record<string, FactReview> {
+  const groups = (output as { review?: unknown } | null)?.review;
+  const byId = new Map(after.map(fact => [fact.id, fact]));
+  const allowedAdds = new Set(added.map(line => line.w));
+  const review: Record<string, FactReview> = {};
+  if (!Array.isArray(groups)) return review;
+  for (const group of groups) {
+    if (!group || !REVIEW_SECTIONS.includes(group.section) || !Array.isArray(group.entries)) continue;
+    for (const entry of group.entries) {
+      if (!entry) continue;
+      const id = Number.isInteger(entry.n) && entry.w === null ? before[entry.n]?.id
+        : entry.n === null && Number.isInteger(entry.w) && allowedAdds.has(entry.w) ? `fact_s_${entry.w + 1}` : undefined;
+      const fact = id && byId.get(id);
+      if (!id || !fact || Object.hasOwn(review, id)) continue;
+      const wording = typeof entry.wording === 'string' ? entry.wording.trim() : '';
+      const supported = group.section !== 'sensitive' && wording && wording !== fact.statement && wording.length <= 1000
+        && !checkSupported(wording, [id], [fact]).length && !findSlop(wording).length;
+      review[id] = { section: group.section, wording: supported ? wording : null };
+    }
+  }
+  return review;
+}
 
 function claim(deps: ExtractionDeps, taskId: string): Claim | null {
   const now = deps.now();
@@ -76,10 +103,28 @@ function markTransmission(deps: ExtractionDeps, held: Claim, value: 'not_dispatc
 // 정리는 선택 단계다. 한도 초과·시간 초과·형식 오류는 추출 실패가 아니라 규칙 분류로 돌아간다.
 // 다시 집힌 작업(generation > 1)에서는 보내지 않는다(전송 여부가 불명확한 유료 호출을 자동 재시도하지 않는다).
 async function refine(deps: ExtractionDeps, held: Claim, outcome: Outcome): Promise<Outcome> {
-  if (!deps.structure || outcome.status !== 'review_required' || held.generation !== 1) return outcome;
+  if (!deps.structure || held.generation !== 1 || !outcome.source || outcome.errorCode === 'EMPTY_TEXT') return outcome;
   try {
-    // 원문 전체를 함께 보낸다(연락처·머리글 줄은 가림). 규칙이 분류하지 못한 줄도 모델이 살릴 수 있다.
+    // 원문 전체로 문맥을 보여 주고, 규칙이 분류하지 못한 경력 줄은 따로 표시해 살릴 수 있게 한다.
     const parsed = outcome.warnings.map(parseWarning);
+    const call = { workspaceId: held.workspaceId, taskId: held.taskId, leaseGeneration: held.generation };
+    if (deps.structure.draft) {
+      markTransmission(deps, held, 'dispatched');
+      const output = await deps.structure.draft({ source: outcome.source, call });
+      markTransmission(deps, held, 'completed');
+      const draft = validateReviewDraft(output, outcome.source, held.documentId, parsed.filter(warning => warning !== null));
+      if (!draft) return outcome;
+      const evidence = draft.facts.flatMap(fact => fact.evidence);
+      const covers = (page: number | null, start: number, end: number) => evidence.some(item =>
+        item.kind === 'document' && item.page === page && item.start <= start && item.end >= end);
+      const warnings = outcome.warnings.filter((_, index) => {
+        const item = parsed[index];
+        return item?.code !== 'NO_FACT_CANDIDATES' && !(item?.code === 'UNCLASSIFIED_LINE'
+          && item.start !== null && item.end !== null && covers(item.page, item.start, item.end));
+      });
+      return { ...outcome, ...draft, status: 'review_required', errorCode: null, warnings };
+    }
+    if (outcome.status !== 'review_required') return outcome;
     const context = outcome.source ? structureContext(outcome.source, outcome.facts, parsed.flatMap(item => item ? [item] : [])) : undefined;
     markTransmission(deps, held, 'dispatched');
     const output = await deps.structure.classify({ lines: structureLines(outcome.facts), context, call: { workspaceId: held.workspaceId, taskId: held.taskId, leaseGeneration: held.generation } });
@@ -93,7 +138,8 @@ async function refine(deps: ExtractionDeps, held: Claim, outcome: Outcome): Prom
     });
     // 항목으로 살린 줄의 '분류하지 못함' 경고는 지운다(같은 줄이 항목과 경고에 함께 나오지 않게).
     const rescued = (warning: string, at: number) => { const item = parsed[at]; return item?.code === 'UNCLASSIFIED_LINE' && refined.added.some(line => line.page === item.page && line.start === item.start && line.end === item.end); };
-    return { ...outcome, facts: refined.facts, warnings: [...outcome.warnings.filter((warning, at) => !rescued(warning, at)), ...dropped] };
+    return { ...outcome, facts: refined.facts, review: reviewFor(output, outcome.facts, refined.facts, refined.added),
+      warnings: [...outcome.warnings.filter((warning, at) => !rescued(warning, at)), ...dropped] };
   } catch (error) {
     const known = error as { code?: unknown; transmission?: unknown } | null;
     markTransmission(deps, held, known?.transmission === 'not_dispatched' || known?.transmission === 'completed' ? known.transmission : 'unknown');
@@ -115,7 +161,7 @@ function complete(deps: ExtractionDeps, held: Claim, document: DocumentRow, outc
     db.prepare('UPDATE ce7_documents SET extraction_status = ?, error_code = ? WHERE workspace_id = ? AND id = ?')
       .run(outcome.status, outcome.errorCode, held.workspaceId, held.documentId);
     db.prepare(`UPDATE ce7_tasks SET state = ?, error_code = ?, result_json = ?, lease_owner = NULL, lease_until_ms = NULL, updated_at_ms = ? WHERE id = ?`)
-      .run(outcome.status === 'failed' ? 'failed' : 'succeeded', outcome.errorCode, JSON.stringify({ extraction_id: extractionId }), now, held.taskId);
+      .run(outcome.status === 'failed' ? 'failed' : 'succeeded', outcome.errorCode, JSON.stringify({ extraction_id: extractionId, review: outcome.review }), now, held.taskId);
     db.exec('COMMIT');
     return true;
   } catch (error) {

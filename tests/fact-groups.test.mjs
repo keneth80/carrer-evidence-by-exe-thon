@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { factGroups } from '../packages/tailor/src/fact-groups.ts';
-import { applyStructure, MASKED_LINE, structureContext, structureLines } from '../packages/resume/src/structure.ts';
-import { extractionStep } from '../apps/web/src/resume/extraction-step.ts';
+import { applyStructure, structureContext, structureLines } from '../packages/resume/src/structure.ts';
+import { extractCandidates } from '../packages/resume/src/candidates.ts';
+import { extractionStep, linerExchange } from '../apps/web/src/resume/extraction-step.ts';
 import { buildStructureRequest, STRUCTURE_SCHEMA } from '../packages/liner/src/structure.ts';
 
 // 사용자 테스트(2026-11-21): 추출 확인 화면에서 회사명·직무·근무지역이 따로 체크박스로 나와 보기 힘들었다.
@@ -32,23 +33,79 @@ const ids = group => group.indexes.map(index => FACTS[index].id);
 
 test('facts are grouped by employer, project and section; meta lines lead each employer group', () => {
   const groups = factGroups(FACTS);
-  assert.deepEqual(groups.map(group => [group.kind, group.title, ids(group)]), [
-    ['basic', '기본 정보·소개', ['f0', 'f1']],
-    ['results', '주요 성과', ['f2']],
-    ['employer', '가나 주식회사 · 2021.03 - 현재', ['f3', 'f6', 'f4', 'f7', 'f5']],
-    ['employer', '다라 주식회사 · 2018.01 - 2021.02', ['f9', 'f8', 'f10']],
-    ['section', '기술', ['f11', 'f15']],
-    ['project', '모아보기 | 개인 프로젝트', ['f12', 'f13']],
-    ['section', '학력', ['f14']],
-    ['etc', '기타', ['f16']],
+  assert.deepEqual(groups.map(group => [group.title, ids(group)]), [
+    ['소개', ['f0', 'f1']],
+    ['근무 이력', ['f2', 'f3', 'f6', 'f4', 'f7', 'f5', 'f9', 'f8', 'f10']],
+    ['학력', ['f14']],
+    ['기술', ['f11', 'f15']],
+    ['기타', ['f16', 'f12', 'f13']],
   ]);
+  assert.deepEqual(groups[1].children.map(group => [group.title, ids(group)]), [
+    ['가나 주식회사 · 2021.03 - 현재', ['f3', 'f6', 'f4', 'f7', 'f5']],
+    ['다라 주식회사 · 2018.01 - 2021.02', ['f9', 'f8', 'f10']],
+  ]);
+  assert.deepEqual(groups[4].children.map(group => [group.title, ids(group)]), [['모아보기 | 개인 프로젝트', ['f12', 'f13']]]);
   assert.equal(groups.flatMap(group => group.indexes).length, FACTS.length);
+});
+
+test('existing rule-based facts preserve workplace selection and separate explicitly titled projects and awards', () => {
+  const facts = [fact('a', 'employer', '예시랩'), fact('b', 'responsibility', '프로젝트: 고객 정산'),
+    fact('c', 'responsibility', '배치 로그를 분석했습니다.'), fact('d', 'other', '운영 프로젝트'),
+    fact('e', 'achievement', '처리 시간을 20% 줄였습니다.'), fact('f', 'achievement', '혁신 우수상 수상')];
+  const [career, awards] = factGroups(facts);
+  assert.deepEqual(career.indexes, [0, 1, 2, 3, 4]);
+  assert.deepEqual(career.children[0].children.map(group => [group.title, group.indexes]), [
+    ['프로젝트: 고객 정산', [1, 2]], ['운영 프로젝트', [3, 4]],
+  ]);
+  assert.deepEqual([awards.title, awards.indexes], ['상훈', [5]]);
 });
 
 test('no employer or empty input does not throw and keeps every fact once', () => {
   assert.deepEqual(factGroups([]), []);
   const loose = [fact('a', 'role', '디자이너'), fact('b', 'skill', 'Figma')];
-  assert.deepEqual(factGroups(loose).map(group => [group.title, group.indexes]), [['기타', [0]], ['기술', [1]]]);
+  assert.deepEqual(factGroups(loose).map(group => [group.title, group.indexes]), [['기술', [1]], ['기타', [0]]]);
+});
+
+test('review sections group introductions, awards and sensitive items separately from employer facts', () => {
+  const facts = [fact('a', 'other', '현장 시스템을 개발해 왔습니다.'), fact('b', 'employer', '예시랩'),
+    fact('c', 'responsibility', '장비 로그를 분석했습니다.'), fact('d', 'achievement', '사내 표창 수상'),
+    fact('e', 'education', '예시대학교'), fact('f', 'other', '별도 확인 항목')];
+  const sections = ['intro', 'career', 'career', 'awards', 'education', 'sensitive'];
+  assert.deepEqual(factGroups(facts, sections).map(group => [group.title, group.indexes]), [
+    ['소개', [0]], ['근무 이력', [1, 2]], ['상훈', [3]], ['학력', [4]], ['민감정보', [5]],
+  ]);
+});
+
+test('two employment records at the same company have independent selection groups', () => {
+  const facts = [
+    fact('a', 'employer', '예시랩'), fact('b', 'responsibility', '데이터 처리'), fact('c', 'responsibility', '장비 연동'),
+    fact('d', 'employer', '예시랩'), fact('e', 'responsibility', '현장 운영'),
+  ];
+  const review = facts.map((_, index) => ({
+    section: 'career', wording: null, primary: true,
+    group: index < 3 ? { id: '0', title: '예시랩 · 2019' } : { id: '1', title: '예시랩 · 2023' },
+  }));
+  review[1].project = { id: '0', title: '처리 프로젝트' };
+  review[2].project = { id: '1', title: '연동 프로젝트' };
+  review[4].project = { id: '0', title: '운영 프로젝트' };
+  const [career] = factGroups(facts, [], review);
+  assert.equal(career.title, '근무 이력');
+  assert.deepEqual(career.indexes, [0, 1, 2, 3, 4]);
+  assert.deepEqual(career.children.map(group => [group.indexes, group.children.map(project => [project.title, project.indexes])]), [
+    [[0, 1, 2], [['처리 프로젝트', [1]], ['연동 프로젝트', [2]]]],
+    [[3, 4], [['운영 프로젝트', [4]]]],
+  ]);
+});
+
+test('structured review shows all sections in HR review order', () => {
+  const sections = ['other', 'career', 'awards', 'intro', 'sensitive', 'certifications', 'skills', 'education'];
+  const facts = sections.map(section => fact(section, 'other', section));
+  const review = sections.map(section => ({ section, wording: null, primary: true,
+    ...(section === 'career' ? { group: { id: '0', title: '예시랩' } } : {}),
+  }));
+  assert.deepEqual(factGroups(facts, sections, review).map(group => group.title), [
+    '소개', '근무 이력', '상훈', '학력', '기술', '자격', '민감정보', '기타',
+  ]);
 });
 
 test('structure output only changes category and position, never text, evidence or count', () => {
@@ -72,7 +129,7 @@ test('structure output only changes category and position, never text, evidence 
   assert.equal(result.moved, 3);
   assert.deepEqual(result.facts.map(item => item.statement).sort(), facts.map(item => item.statement).sort());
   for (const item of result.facts) assert.deepEqual(item.evidence, facts.find(original => original.id === item.id).evidence);
-  assert.deepEqual(factGroups(result.facts)[0].indexes, [0, 1, 2, 3, 4]);
+  assert.deepEqual(factGroups(result.facts)[0].children[0].indexes, [0, 1, 2, 3, 4]);
 });
 
 test('malformed structure output leaves facts untouched', () => {
@@ -83,10 +140,11 @@ test('malformed structure output leaves facts untouched', () => {
   assert.equal(applyStructure(facts, { items: [{ n: 1, category: 'role', under: 1 }, { n: 0, category: 'employer', under: 1 }] }).facts, facts);
 });
 
-test('structure request sends line numbers with contact details masked and a strict schema', () => {
-  const request = buildStructureRequest(structureLines([fact('a', 'other', '문의 kim@example.com 010-1234-5678'), fact('b', 'employer', '예시랩')]), 'balanced');
+test('structure request preserves text and sends a strict schema without internal fact IDs', () => {
+  const text = '문의 kim@example.com 010-1234-5678 000000-1000000';
+  const request = buildStructureRequest(structureLines([fact('a', 'other', text), fact('b', 'employer', '예시랩')]), 'balanced');
   const body = JSON.stringify(request);
-  assert.ok(!body.includes('kim@example.com') && !body.includes('010-1234-5678'));
+  assert.ok(request.messages[1].content.includes(text));
   assert.ok(!body.includes('"id"'));
   assert.equal(request.response_format.json_schema.schema, STRUCTURE_SCHEMA);
   assert.deepEqual(STRUCTURE_SCHEMA.properties.items.items.required, ['n', 'action', 'category', 'under', 'parts']);
@@ -102,6 +160,29 @@ const LINES = [
   at('c', 'responsibility', '디자인 시스템을 만들었습니다.'), at('p', 'other', 'Page 1'),
 ];
 const keep = (n, category, extra = {}) => ({ n, action: 'keep', category, under: null, parts: null, ...extra });
+
+test('three wrapped summary lines become one item while preserving punctuation and source evidence', () => {
+  const summary = [
+    '공정 데이터 처리와 현장 모니터링 도구의 설계 및 개발을',
+    '담당해 왔습니다. 현재는 장비 연동 설계 및',
+    '운영 자동화 흐름의 관리 업무를 맡고 있습니다.',
+  ];
+  const standalone = '새 직원을 위한 기술 교육 자료를 별도로 작성합니다.';
+  const source = { input_kind: 'pasted_text', pages: [{ page: null, text: ['경력 요약', ...summary, standalone].join('\n') }] };
+  const { facts, warnings } = extractCandidates(source, 'doc_1');
+  assert.deepEqual(facts.map(item => item.statement), [...summary, standalone]);
+
+  const request = buildStructureRequest(structureLines(facts), 'balanced', structureContext(source, facts, warnings));
+  assert.match(request.messages[0].content, /\[s=번호\]는 줄바꿈 위치일 뿐이다/);
+  assert.match(request.messages[0].content, /n=11과 n=12에 각각 join/);
+  assert.ok(request.messages[1].content.includes(summary.map((line, index) => `[s=${index + 1}] ${line}`).join(' ')));
+
+  const output = { items: [keep(1, 'other', { action: 'join' }), keep(2, 'other', { action: 'join' })] };
+  const result = applyStructure(facts, output, source);
+  assert.equal(result.joined, 2);
+  assert.deepEqual(result.facts.map(item => item.statement), [summary.join(' '), standalone]);
+  assert.equal(result.facts[0].evidence[0].quote, summary.join('\n'));
+});
 
 test('join, split and drop keep every statement verbatim in the source', () => {
   const output = { items: [
@@ -136,16 +217,22 @@ test('operations that would invent or hide text are ignored', () => {
   assert.equal(applyStructure(LINES, { items: [keep(2, 'other', { action: 'rewrite' })] }, SOURCE).facts, LINES);
 });
 
-test('whole source is sent with contact and header lines masked; only unclassified lines can be rescued', () => {
+test('whole source includes contact and header lines on one line while keeping them ineligible for rescue', () => {
   const warn = (code, quote, message = 'x') => { const start = Array.from(TEXT.slice(0, TEXT.indexOf(quote))).length; return { code, page: null, start, end: start + Array.from(quote).length, message }; };
-  const warnings = [warn('UNCLASSIFIED_LINE', '홍예시', '머리글 줄은 분류하지 않았습니다(이름 등 개인정보일 수 있음).'), warn('PERSONAL_INFO_EXCLUDED', 'hong@example.com'), warn('UNCLASSIFIED_LINE', '사내 강의 3회 진행'), warn('NEGATED_OR_UNVERIFIED', 'Page 1')];
+  const warnings = [warn('UNCLASSIFIED_LINE', '홍예시', '머리글 줄은 분류하지 않았습니다(이름 등 개인정보일 수 있음).'), warn('PERSONAL_INFO_EXCLUDED', 'hong@example.com'), warn('UNCLASSIFIED_LINE', 'hong@example.com'), warn('UNCLASSIFIED_LINE', '사내 강의 3회 진행'), warn('NEGATED_OR_UNVERIFIED', 'Page 1')];
   const facts = LINES.slice(0, 5);
   const context = structureContext(SOURCE, facts, warnings);
-  assert.deepEqual(context.source.slice(0, 3).map(line => line.text), [MASKED_LINE, MASKED_LINE, '경력사항']);
+  assert.deepEqual(context.source.slice(0, 3).map(line => line.text), ['홍예시', 'hong@example.com', '경력사항']);
   assert.deepEqual(context.unclassified.map(line => [line.w, line.text]), [[0, '사내 강의 3회 진행']]);
   assert.deepEqual(context.factLine, [2, 3, 4, 5, 6]);
-  const body = JSON.stringify(buildStructureRequest(structureLines(facts), 'balanced', context));
-  assert.ok(body.includes('디자인 시스템을 만들었습니다.') && !body.includes('홍예시') && !body.includes('hong@example.com'));
+  const request = buildStructureRequest(structureLines(facts), 'balanced', context);
+  const [sourceBlock] = request.messages[1].content.split('\n\n');
+  assert.equal(sourceBlock, 'source(원문 전체):\n' + [
+    '[s=0] 홍예시', '[s=1] hong@example.com', '[s=2] 경력사항',
+    '[s=3] 예시랩 프론트엔드 리드 2020.01 ~ 2023.02', '[s=4] 결제 화면을 다시 설계해 이탈률을',
+    '[s=5] 12%에서 7%로 줄였습니다.', '[s=6] 디자인 시스템을 만들었습니다.',
+    '[s=7] 사내 강의 3회 진행', '[s=8] Page 1',
+  ].join(' '));
 
   const result = applyStructure(facts, { items: [], adds: [{ w: 0, category: 'achievement', under: 1 }, { w: 7, category: 'role', under: null }, { w: 0, category: 'role', under: null }] }, SOURCE, context.unclassified, 'doc_1');
   assert.deepEqual(result.added.map(line => line.text), ['사내 강의 3회 진행']);
@@ -158,4 +245,14 @@ test('whole source is sent with contact and header lines masked; only unclassifi
 test('extraction progress step follows the real task state', () => {
   const step = (state, provider_transmission) => extractionStep({ state, provider_transmission });
   assert.deepEqual([extractionStep(null), step('queued', 'not_dispatched'), step('running', 'not_dispatched'), step('running', 'dispatched'), step('running', 'completed'), step('running', 'unknown'), step('running', undefined)], [0, 0, 0, 1, 2, 2, 0]);
+});
+
+test('Liner exchange distinguishes no call, pending response, received response and unknown outcome', () => {
+  const exchange = (state, provider_transmission) => linerExchange({ state, provider_transmission });
+  assert.deepEqual(exchange('succeeded', 'not_dispatched'), { request: '전송 내역 없음', response: '수신 내역 없음' });
+  assert.deepEqual(exchange('running', 'dispatched'), { request: '전송됨', response: '응답 대기 중' });
+  assert.deepEqual(exchange('succeeded', 'completed'), { request: '전송됨', response: '응답 수신됨' });
+  assert.deepEqual(exchange('succeeded', 'unknown'), { request: '전송 시도', response: '수신 여부 확인 불가' });
+  assert.equal(exchange('succeeded', 'dispatched').response, '수신 여부 확인 불가');
+  assert.equal(exchange('succeeded').response, '수신 상태 확인 불가');
 });

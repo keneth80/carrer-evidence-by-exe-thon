@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ResumeFact } from '../../../../packages/resume/src/types.ts';
+import type { FactReview, ResumeFact } from '../../../../packages/resume/src/types.ts';
 import { api, ApiError, describeError } from './api.ts';
 import type { DocumentSummary, ExtractionDraft, FactRevision, SourceText } from './api.ts';
 import { FactEditor, isWithinEvidence } from './FactEditor.tsx';
@@ -8,7 +8,7 @@ import { SourcePanel } from './SourcePanel.tsx';
 import type { Span } from './SourcePanel.tsx';
 import { WarningsPanel } from './WarningsPanel.tsx';
 import { FactBulkBar } from './FactBulkBar.tsx';
-import { ExtractionProgress } from './ExtractionProgress.tsx';
+import { ExtractionProgress, LinerExchange } from './ExtractionProgress.tsx';
 import { addLines } from './bulk.ts';
 import { SupplementSection } from './SupplementSection.tsx';
 import { downloadResumeDocx } from './download-docx.ts';
@@ -18,7 +18,7 @@ import { recentSearch } from '../search/recent.ts';
 
 // U02 추출 내용 확인. 확인 전 초안은 확정 경력이 아니며, 저장하면 새 경력 revision을 만든다.
 
-type Loaded = { summary: DocumentSummary; draft: ExtractionDraft | null; source: SourceText | null; revision: FactRevision | null };
+type Loaded = { summary: DocumentSummary; draft: ExtractionDraft | null; source: SourceText | null; revision: FactRevision | null; review?: Record<string, FactReview> };
 
 const failureHelp: Record<string, string> = {
   EMPTY_TEXT: '텍스트를 읽지 못했어요. 스캔 이미지 PDF일 수 있습니다. 내용을 텍스트로 붙여넣거나 텍스트가 있는 PDF를 올려 주세요.',
@@ -36,7 +36,8 @@ async function load(documentId: string): Promise<Loaded | 'not_found'> {
   const draft = await api.extraction(documentId);
   const source = await api.sourceText(documentId).catch((error: unknown) => { if (error instanceof ApiError && error.status === 409) return null; throw error; });
   const revision = summary.current_fact_revision_id ? await api.factRevision(summary.current_fact_revision_id) : null;
-  return { summary, draft, source, revision };
+  const review = summary.latest_task ? await api.extractionReview(summary.latest_task.id) : undefined;
+  return { summary, draft, source, revision, review };
 }
 
 function editable(facts: ResumeFact[], origin: EditableFact['origin']): EditableFact[] {
@@ -63,7 +64,8 @@ export function ReviewPage({ documentId }: { documentId: string }) {
       setError(null); setFailures(0);
       setData(value);
       if (value !== 'not_found' && value.draft) {
-        setItems(value.revision ? editable(value.revision.facts, 'confirmed') : editable(value.draft.facts, 'extracted'));
+        setItems(value.revision ? editable(value.revision.facts, 'confirmed') : editable(value.draft.facts, 'extracted').map(item =>
+          value.review?.[item.fact.id]?.section === 'sensitive' ? { ...item, included: false } : item));
         setEditing(!value.revision);
       }
     }).catch(failure => {
@@ -114,6 +116,9 @@ export function ReviewPage({ documentId }: { documentId: string }) {
 
   const includedCount = items.filter(item => item.included).length;
   const invalidCount = items.filter(item => item.included && !isWithinEvidence(item)).length;
+  const linerTransmission = summary.latest_task?.provider_transmission;
+  const showSourceGrouping = !revision && items.length > 0 && (linerTransmission === 'completed' || linerTransmission === 'unknown')
+    && !Object.values(data.review ?? {}).some(annotation => annotation.primary);
   return <>
     <a className="back" href="/start" onClick={event => { event.preventDefault(); navigate('/start'); }}>← 이력서 등록으로</a>
     <section className="hero compact">
@@ -123,6 +128,7 @@ export function ReviewPage({ documentId }: { documentId: string }) {
     </section>
     {document.data_origin === 'synthetic' && <div className="notice"><strong>합성 예시</strong><span>저장소의 가상 이력서와 같은 파일입니다. 실제 인물·경력이 아닙니다.</span></div>}
     {(status === 'uploaded' || status === 'extracting') && <ExtractionProgress task={summary.latest_task} since={document.created_at} />}
+    {summary.latest_task && <LinerExchange key={summary.latest_task.id} task={summary.latest_task} />}
     {/* 후보 0건은 읽기 실패가 아니다. 원문이 있으면 직접 골라 저장할 수 있으므로 오류 대신 안내로 보여준다. */}
     {status === 'failed' && document.error_code === 'NO_FACT_CANDIDATES' && source
       ? <div className="notice"><strong>자동 후보 0건</strong><span>원문은 읽었지만 경력 항목으로 자동 분류한 줄이 없습니다. 왼쪽 원문에서 줄마다 있는 ‘+ 추가’로 항목을 고른 뒤 저장하세요.</span></div>
@@ -144,8 +150,9 @@ export function ReviewPage({ documentId }: { documentId: string }) {
       </section>
       <section className="panel" aria-labelledby="facts-title">
         <h2 id="facts-title">{revision && !editing ? '확정 경력' : '경력 항목 확인'} <span className="count">{includedCount}</span></h2>
+        {showSourceGrouping && <p className="notice"><span>Liner 검토 초안을 적용하지 못해 원문 기준으로 구역을 분류했습니다.</span></p>}
         {!readOnly && <FactBulkBar items={items} onChange={setItems} />}
-        <FactEditor inputKind={document.input_kind} items={items} readOnly={readOnly} onShow={setHighlight} onChange={(index, next) => setItems(current => current.map((item, i) => i === index ? next : item))}
+        <FactEditor inputKind={document.input_kind} source={source} items={items} review={data.review} readOnly={readOnly} onShow={setHighlight} onChange={(index, next) => setItems(current => current.map((item, i) => i === index ? next : item))}
           onToggleGroup={(indexes, included) => setItems(current => current.map((item, i) => indexes.includes(i) && item.included !== included ? { ...item, included } : item))} />
         <WarningsPanel warnings={draft.warnings} source={source} readOnly={readOnly} onShow={setHighlight} onAdd={addFromSource} onAddMany={addLinesFromSource} />
       </section>

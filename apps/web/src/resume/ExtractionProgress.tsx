@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import type { LinerMessages } from '../../../../packages/liner/src/chat.ts';
+import { api } from './api.ts';
 import type { Task } from './api.ts';
-import { extractionStep } from './extraction-step.ts';
+import { extractionStep, linerExchange } from './extraction-step.ts';
 
 // 이력서를 읽는 동안의 단계 표시(사용자 요청 2026-11-21, DECISIONS S1-31).
 // 단계는 추정하지 않고 작업의 실제 상태에서 읽는다: 대기·실행(state)과 AI 호출의 전송 상태(provider_transmission).
@@ -12,6 +14,48 @@ const STEPS = [
   { label: '원문 대조·저장', doing: '정리한 항목이 원문과 같은지 대조하고 저장하고 있어요' },
 ];
 const PERCENT = [12, 55, 92];
+
+export function LinerExchange({ task }: { task: Task }) {
+  const { request, response } = linerExchange(task);
+  const [open, setOpen] = useState(true);
+  const [body, setBody] = useState<LinerMessages | null>();
+  const [failed, setFailed] = useState(false);
+  const { id, updated_at: updatedAt, provider_transmission: transmission } = task;
+  useEffect(() => {
+    if (!open || !transmission || transmission === 'not_dispatched') return;
+    let current = true;
+    api.linerMessages(id).then(({ messages }) => {
+      if (current) { setBody(messages); setFailed(false); }
+    }, () => { if (current) setFailed(true); });
+    return () => { current = false; };
+  }, [id, open, transmission, updatedAt]);
+  return <section className="panel liner-exchange" aria-labelledby="liner-exchange-title">
+    <h2 id="liner-exchange-title">라이너 API 송수신 내역</h2>
+    <dl aria-live="polite">
+      <div><dt>요청 송신</dt><dd>{request}</dd></div>
+      <div><dt>응답 수신</dt><dd>{response}</dd></div>
+    </dl>
+    <details open={open} onToggle={event => setOpen(event.currentTarget.open)}>
+      <summary>요청·응답 메시지</summary>
+      {failed && <p className="muted">메시지를 불러오지 못했습니다. 접었다 다시 열어 주세요.</p>}
+      {body ? <div className="liner-messages">
+        <section>
+          <h3>보낸 메시지</h3>
+          {body.request.map((message, index) => <div key={index}>
+            <h4>{message.role}</h4>
+            <pre tabIndex={0}>{message.content}</pre>
+          </div>)}
+        </section>
+        <section>
+          <h3>받은 메시지</h3>
+          {body.response ? <><h4>{body.response.role}</h4><pre tabIndex={0}>{body.response.content}</pre></>
+            : <p className="muted">{task.state === 'running' && transmission === 'dispatched' ? '라이너의 응답을 기다리는 중입니다.' : '확인할 수 있는 응답 본문이 없습니다.'}</p>}
+        </section>
+      </div> : !failed && <p className="muted">{!transmission || transmission === 'not_dispatched' ? '표시할 메시지가 없습니다.'
+        : body === undefined ? '메시지를 불러오는 중…' : '이 작업의 메시지가 서버 메모리에 없습니다.'}</p>}
+    </details>
+  </section>;
+}
 
 export function ExtractionProgress({ task, since }: { task: Task | null; since: string }) {
   const step = extractionStep(task);

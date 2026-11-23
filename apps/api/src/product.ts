@@ -6,6 +6,9 @@ import type { Principal } from './auth.ts';
 import { createPastedText, readOriginal, uploadPdf } from './resume/intake.ts';
 import { confirmFacts, getExtractionDraft, getProductTask, getResumeDocument, getResumeFactRevision, getSourceText, listResumeDocuments } from './resume/review.ts';
 import type { ObjectStore } from './resume/storage.ts';
+import { getTask } from './resume/repository.ts';
+import type { createLinerMessageCache } from './resume/liner-messages.ts';
+import { problem } from './http.ts';
 import { createResumeAiReview, getResumeAiReview } from './resume/ai-review.ts';
 import { createSupplementSession, getSupplementSession, postSupplementMessage, postSupplementStatement, postSupplementSuggestion } from './resume/supplement.ts';
 import { createTailoringSession, getTailoringSession, listSessionTasks, listTailoringMessages, postTailoringMessage, putSessionJobText, requestJdCheck, restoreResumeRevision, retryTailoringMessage } from './tailor/sessions.ts';
@@ -23,7 +26,7 @@ import { cancelCampaign, createCampaign, getCampaignHandler, getCampaignQueue, l
 // S04(편집 세션·대화·변경 제안·이력서 revision·확정·PDF), S05(지원 건·수동 제출 권한·시도·접수 근거·외부 지원 기록·실행기 연결), S06(자동화 정책 recommend·prepare·유사 공고 캠페인·대기함)을 처리한다.
 // 여기서 처리하지 않는 경로는 null을 돌려 기존 501 미구현 응답으로 넘긴다.
 
-export type ProductDeps = { db: DatabaseSync; config: Config; store: ObjectStore; schedule: (taskId: string) => void };
+export type ProductDeps = { db: DatabaseSync; config: Config; store: ObjectStore; schedule: (taskId: string) => void; linerMessages?: Pick<ReturnType<typeof createLinerMessageCache>, 'get'> };
 
 type Handler = (deps: ProductDeps, request: ProductRequest, principal: Principal, id: string, second: string) => Reply | Promise<Reply>;
 type Route = { method: string; pattern: RegExp; write: boolean; handle: Handler };
@@ -32,6 +35,16 @@ const ID = '([a-zA-Z0-9_-]{1,128})';
 const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/v1\/product-session$/, write: false, handle: (deps, _request, principal) => ({ status: 200, body: productSessionBody(principal, deps.config.mode === 'live') }) },
   { method: 'DELETE', pattern: /^\/api\/v1\/local-dev\/session$/, write: false, handle: (deps, request, principal) => localDevLogout(deps.db, deps.config, request, principal) },
+  { method: 'GET', pattern: new RegExp(`^/api/v1/local-dev/extraction-tasks/${ID}/liner-messages$`), write: false, handle: (deps, request, principal, id) => {
+    const task = getTask(deps.db, principal.workspaceId, id);
+    if (task?.kind !== 'extract_resume') return problem(request, 404, 'TASK_NOT_FOUND', '작업을 찾을 수 없습니다.');
+    return { status: 200, body: { messages: deps.linerMessages?.get(id) ?? null } };
+  } },
+  { method: 'GET', pattern: new RegExp(`^/api/v1/local-dev/extraction-tasks/${ID}/review$`), write: false, handle: (deps, request, principal, id) => {
+    const task = getTask(deps.db, principal.workspaceId, id);
+    if (task?.kind !== 'extract_resume') return problem(request, 404, 'TASK_NOT_FOUND', '작업을 찾을 수 없습니다.');
+    return { status: 200, body: task.result_json ? JSON.parse(task.result_json).review ?? {} : {} };
+  } },
   { method: 'GET', pattern: /^\/api\/v1\/resume-documents$/, write: false, handle: (deps, _request, principal) => listResumeDocuments(deps, principal) },
   { method: 'POST', pattern: /^\/api\/v1\/resume-documents$/, write: true, handle: (deps, request, principal) => uploadPdf(deps, request, principal) },
   { method: 'POST', pattern: /^\/api\/v1\/resume-documents\/text$/, write: true, handle: (deps, request, principal) => createPastedText(deps, request, principal) },

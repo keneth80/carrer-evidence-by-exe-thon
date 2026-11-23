@@ -1,6 +1,7 @@
-import type { ResumeFact } from '../../../../packages/resume/src/types.ts';
+import type { FactReview, ResumeFact } from '../../../../packages/resume/src/types.ts';
 import type { Condition, JobRequirement, QueryPlan } from '../../../../packages/search/src/types.ts';
 import type { ProposedChange, ResumeBlock } from '../../../../packages/tailor/src/types.ts';
+import type { LinerMessages } from '../../../../packages/liner/src/chat.ts';
 
 // /api/v1 S01·S02·S04 호출(S05 지원 호출은 apply/api.ts). 쓰기 요청은 CSRF header와 Idempotency-Key를 붙인다.
 
@@ -92,6 +93,8 @@ export const api = {
   },
   pasteText: (text: string, filename: string, key: string) => call<{ task: Task; resource_id: string }>('POST', '/api/v1/resume-documents/text', JSON.stringify({ text, filename }), 'application/json', key),
   extraction: (id: string) => call<ExtractionDraft>('GET', `/api/v1/resume-documents/${id}/extraction`),
+  linerMessages: (taskId: string) => call<{ messages: LinerMessages | null }>('GET', `/api/v1/local-dev/extraction-tasks/${taskId}/liner-messages`),
+  extractionReview: (taskId: string) => call<Record<string, FactReview>>('GET', `/api/v1/local-dev/extraction-tasks/${taskId}/review`),
   sourceText: (id: string) => call<SourceText>('GET', `/api/v1/resume-documents/${id}/source-text`),
   factRevision: (id: string) => call<FactRevision>('GET', `/api/v1/resume-fact-revisions/${id}`),
   // AI 1차 점검(S1-14). 결과는 안내·질문이며 확정 경력을 바꾸지 않는다.

@@ -17,34 +17,34 @@ export type StructureItem = { n: number; action?: string; category: string; unde
 // adds: 규칙이 분류하지 못해 빠진 줄(unclassified)을 항목으로 살린다. w는 그 줄의 번호.
 export type StructureAdd = { w: number; category: string; under: number | null };
 export type StructureOutput = { items: StructureItem[]; adds?: StructureAdd[] };
-// 원문 전체(사용자 요청 2026-11-21: 뽑아낸 줄만이 아니라 전체 글을 보고 판단). 연락처·머리글 줄은 가려서 보낸다.
+// 이력서 전체의 문맥은 원문 줄 위치로 전달하고, 경력 후보로 쓸 수 있는 줄은 따로 표시한다.
 export type SourceLineView = { s: number; text: string };
 export type Unclassified = { w: number; s: number; page: number | null; start: number; end: number; text: string };
 export type StructureContext = { source: SourceLineView[]; unclassified: Unclassified[]; factLine: (number | null)[] };
-export type StructureProvider = { classify(input: { lines: StructureLine[]; context?: StructureContext; call: StructureCall; signal?: AbortSignal }): Promise<StructureOutput> };
+export type StructureProvider = {
+  classify(input: { lines: StructureLine[]; context?: StructureContext; call: StructureCall; signal?: AbortSignal }): Promise<StructureOutput>;
+  draft?(input: { source: SourceText; call: StructureCall; signal?: AbortSignal }): Promise<unknown>;
+};
 export type StructureResult = { facts: ResumeFact[]; dropped: ResumeFact[]; added: Unclassified[]; changed: number; moved: number; joined: number; split: number };
 
-export const MASKED_LINE = '[개인정보로 보여 가린 줄]';
 const HEADER_NOTE = '머리글';
 
-// 원문을 줄 번호와 함께 만든다. 연락처로 제외한 줄과 머리글(이름일 수 있음) 줄은 내용을 보내지 않는다.
 // 살릴 수 있는 줄은 규칙이 '분류하지 못함'으로 남긴 줄뿐이다. 부정·미확인·희망 조건·개인정보 줄은 모델이 사실로 만들 수 없다.
 export function structureContext(source: SourceText, facts: ResumeFact[], warnings: ExtractionWarning[]): StructureContext {
   const located = warnings.filter(item => item.start !== null && item.end !== null) as (ExtractionWarning & { start: number; end: number })[];
-  const hidden = located.filter(item => item.code === 'PERSONAL_INFO_EXCLUDED' || (item.code === 'UNCLASSIFIED_LINE' && item.message.includes(HEADER_NOTE)));
+  const excluded = located.filter(item => item.code === 'PERSONAL_INFO_EXCLUDED' || (item.code === 'UNCLASSIFIED_LINE' && item.message.includes(HEADER_NOTE)));
   const lines = source.pages.flatMap(page => splitLines(page.text).filter(line => line.text).map(line => ({ page: page.page, ...line })));
   const lineOf = (page: number | null, start: number) => { const at = lines.findIndex(line => line.page === page && line.start <= start && start < line.end); return at === -1 ? null : at; };
   const overlaps = (line: typeof lines[number], item: { page: number | null; start: number; end: number }) => item.page === line.page && item.start < line.end && line.start < item.end;
-  const view = lines.map((line, s) => ({ s, text: hidden.some(item => overlaps(line, item)) ? MASKED_LINE : line.text }));
   const unclassified = located.filter(item => item.code === 'UNCLASSIFIED_LINE' && !item.message.includes(HEADER_NOTE)).flatMap(item => {
     const s = lineOf(item.page, item.start);
     const page = source.pages.find(candidate => candidate.page === item.page);
     const text = page ? codePointSlice(page.text, item.start, item.end) : '';
     // 앞뒤 공백이 낀 구간은 위치와 문장이 어긋날 수 있어 살리지 않는다.
-    return s === null || !text.trim() || text !== text.trim() || view[s].text === MASKED_LINE ? [] : [{ s, page: item.page, start: item.start, end: item.end, text }];
+    return s === null || !text.trim() || text !== text.trim() || excluded.some(item => overlaps(lines[s], item)) ? [] : [{ s, page: item.page, start: item.start, end: item.end, text }];
   }).map((item, w) => ({ w, ...item }));
   const factLine = facts.map(fact => { const evidence = fact.evidence[0]; return evidence?.kind === 'document' ? lineOf(evidence.page, evidence.start) : null; });
-  return { source: view, unclassified, factLine };
+  return { source: lines.map((line, s) => ({ s, text: line.text })), unclassified, factLine };
 }
 
 export const structureLines = (facts: ResumeFact[]): StructureLine[] => facts.map((fact, n) => ({ n, category: fact.category, statement: fact.statement }));
