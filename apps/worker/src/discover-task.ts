@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { IDENTITY_QUESTIONS } from '../../../packages/apply/src/identity.ts';
 import { answerIssues, payloadHash, sha256 } from '../../../packages/apply/src/payload.ts';
 import { SELF_FORM_QUESTIONS, demoPosting, selfFormTarget } from '../../../packages/apply/src/self-form.ts';
 import { companyKey, fixedDocumentIssues, isExcludedCompany, MIN_SIMILARITY, similarity } from '../../../packages/apply/src/similarity.ts';
@@ -43,7 +44,7 @@ type Evaluation = {
 type Context = { ws: string; generation: number; campaign: CampaignRow; policy: PolicyRevisionRow; conditions: Condition[]; seedJob: JobDraft; seedBlocks: ResumeBlock[]; facts: FactLike[]; seedAnswers: Answer[] };
 
 const newId = (prefix: string) => `${prefix}_${randomUUID().replaceAll('-', '')}`;
-const IDENTITY_QUESTIONS = ['applicant_name', 'applicant_email'];
+const IDENTITY_IDS: readonly string[] = IDENTITY_QUESTIONS;
 const EDIT_KIND: Record<ProposedChange['operation'], string> = { reorder: 'reorder', insert: 'summary', replace: 'rewrite_with_facts', remove: 'rewrite_with_facts' };
 const STATE_LABEL: Record<string, string> = { submitted: '접수 확인됨', submission_unknown: '접수 여부 불명', running: '전송 중', queued: '제출 승인됨', prepared: '폼 확인됨', draft: '작성 중', waiting_user: '확인 필요', not_submitted: '미접수 확정' };
 
@@ -207,7 +208,7 @@ function record(deps: DiscoverDeps, task: LeasedTask, context: Context, job: Job
         artifact = { id: artifactId, sha256: sha256(docs.bytes), filename: docs.filename };
       }
       // 답변 초안: 이름·이메일만 기준 지원서의 사용자 답변을 가져온다. 지원 동기·동의는 공고마다 사용자가 직접 답한다.
-      const answers = context.seedAnswers.filter(answer => IDENTITY_QUESTIONS.includes(answer.question_id));
+      const answers = context.seedAnswers.filter(answer => IDENTITY_IDS.includes(answer.question_id));
       applicationId = newId('application');
       deps.db.prepare("INSERT INTO ce7_applications (id, workspace_id, job_key, current_revision, source_kind, source_campaign_id, created_at_ms, updated_at_ms) VALUES (?, ?, ?, 1, 'campaign', ?, ?, ?)").run(applicationId, ws, job.job_key, context.campaign.id, now, now);
       const hash = payloadHash({ job_snapshot_id: snapshotId, job_content_hash: snapshotHash(job), resume_revision_id: resumeRevisionId, artifact_id: artifact.id, artifact_sha256: artifact.sha256, answers });

@@ -173,6 +173,7 @@ S05(확정 PDF·답변 → Chrome 확장으로 자체 테스트 폼 지원 → �
 | S5-11 | 계약 확장 경로 6개: `GET /job-applications/{id}/history`, `POST /executor-pairings`, `GET /executor-devices`, `POST /executor-devices/{id}/revoke`, `POST·GET /external-applications`. 연결 코드는 idempotency 응답 저장소에 남기지 않고 같은 key 재요청은 409 | 지원 이력 재열람과 기기 연결에 필요하다. 실행기 프로토콜(`/api/executor/v1`)은 공개 계약에 넣지 않는다. |
 | S5-12 | `BROWSER_APPLY_ENABLED`는 외부 사이트 브라우저 지원 스위치로 남김(true는 여전히 미구현 오류). 자체 폼 지원은 로컬 개발 범위라 이 값과 무관 | 외부 기업 접수가 구현된 것처럼 보이지 않게 한다. |
 | S5-13 | 독립 리뷰 반영: ① 미접수·전송 전 중단 뒤에는 그 이후의 폼 확인만 인정(상태 계산·승인 모두) ② 승인 만료·철회·내용 변경된 대기 시도는 worker·승인 요청 때 `failed_before_dispatch`로 닫음 ③ 이 시도의 접수 기록이 없어도 승인 뒤 같은 공고·같은 PDF의 다른 접수가 있으면 봉인하지 않고 `submission_unknown`(`POSSIBLE_OTHER_SUBMISSION`) ④ 전송 1분 안의 접수 결과 확인은 409 `OBSERVATION_TOO_EARLY` ⑤ 실행 토큰 불일치는 409(기기 연결 유지) ⑥ 한 줄 답변은 저장 전 앞뒤 공백 제거 | 리뷰 MEDIUM 3·LOW 지적. 사용자가 페이지에서 직접 제출한 경우 미접수로 잘못 확정해 중복 접수로 이어지는 것을 막는다. 연결 코드 실패 횟수 제한은 아직 전역 1분 20회다(로컬 개발 범위의 알려진 한계). |
+| S5-14 | 직접 지원 화면도 비어 있는 이름·이메일을 가장 최근에 고친 다른 지원 건의 사용자 답변으로 채워 둔다(S6-07과 같은 규칙, `packages/apply/src/identity.ts`의 `IDENTITY_QUESTIONS`·`identityPrefill`). 지원 동기·개인정보 동의는 가져오지 않는다. 채운 값은 저장 전 초안이며 화면에 '이전 지원서에서 가져옴'을 알리고, 사용자가 '답변 저장'을 눌러야 지원 내용·payload hash가 된다 | 2026-11-24 사용성 개선 요청. 데모 녹화에서 지원할 때마다 이름·이메일을 다시 입력했다. 연락처는 경력 사실·이력서에서 분리하는 원칙(S1-31)을 지키기 위해 이력서가 아니라 사용자가 이전 지원서에 직접 쓴 답변만 쓴다. 저장된 답변은 덮어쓰지 않는다. |
 
 ## S06 구현 결정 — 2026-11-18
 

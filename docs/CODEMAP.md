@@ -83,7 +83,7 @@
 | migration | `contracts/v0.7/migrations/008_browser_apply.sql`, `packages/db/src/index.ts` | v0.7.1: 기기 연결·폼 관측·실행 토큰·외부 지원 기록·자체 폼 사이트 접수 저장소 |
 | migration (DOCX) | `contracts/v0.7/migrations/009_docx_intake.sql` | v0.7.2: `ce7_documents` 형식 CHECK에 docx 추가(표 재생성·행/FK/트리거 유지) |
 | DOCX 합성 fixture | `scripts/make-docx-fixture.mjs`, `fixtures/resumes/frontend.synthetic.docx`, `docx.synthetic.json` | 결정적 bytes 재생성, 합성 hash 목록 |
-| 순수 로직 | `packages/apply/src/self-form.ts`, `payload.ts`, `verify.ts`, `types.ts` | 자체 폼 adapter 명세(문항·주소), 답변 검증·payload hash, 폼 snapshot·readback 대조 |
+| 순수 로직 | `packages/apply/src/self-form.ts`, `payload.ts`, `verify.ts`, `types.ts`, `identity.ts` | 자체 폼 adapter 명세(문항·주소), 답변 검증·payload hash, 폼 snapshot·readback 대조, 이전 지원서의 이름·이메일 채우기(S5-14) |
 | 지원 API | `apps/api/src/apply/applications.ts`, `submission.ts`, `external.ts`, `devices.ts`, `repository.ts` | 지원 건·revision·이력·채용 단계, 수동 권한·시도·접수 확인 요청·근거, 외부 지원 기록, 기기 연결 코드·해제 |
 | 실행기 프로토콜 | `apps/api/src/apply/executor.ts`, `docs/EXECUTOR_PROTOCOL.md` | 기기 토큰 인증, 준비·파일·관측·claim·dispatch·결과 보고 |
 | 접수 대조 | `apps/api/src/apply/reconcile.ts` | 자체 폼 사이트 저장소 대조·봉인, 근거 기록(자체 폼 전용 강한 보장) |

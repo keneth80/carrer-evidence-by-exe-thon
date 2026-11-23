@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ApiError, describeError } from '../resume/api.ts';
 import { navigate } from '../router.ts';
 import { applyApi, CONCLUSION_LABELS, EVIDENCE_LABELS, STAGE_LABELS, STATE_LABELS, userAnswer } from './api.ts';
-import type { Attempt, History, Question, Stage } from './api.ts';
+import type { Application, Attempt, History, Question, Stage } from './api.ts';
+import { identityPrefill } from '../../../../packages/apply/src/identity.ts';
 import { AttemptRecord } from './AttemptRecord.tsx';
 
 // U06 지원서 작성·제출: 답변 저장 → Chrome 확장으로 폼 입력·확인 → 최종 확인·승인 → 접수 결과 → 채용 진행.
@@ -67,7 +68,16 @@ function AnswersStep({ data, onSaved }: { data: History; onSaved: () => void }) 
   const [values, setValues] = useState<Record<string, string>>(initial);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  useEffect(() => setValues(initial), [initial]);
+  // 비어 있는 이름·이메일은 이전 지원서의 내 답변으로 채워 둔다. 저장 전까지는 초안이다.
+  const [previous, setPrevious] = useState<Application[]>([]);
+  useEffect(() => {
+    let live = true;
+    // 이전 지원서를 읽지 못하면 채우지 않고 빈칸으로 둔다(직접 입력하면 된다).
+    applyApi.list().then(({ items }) => { if (live) setPrevious(items); }, () => undefined);
+    return () => { live = false; };
+  }, []);
+  const prefill = useMemo(() => identityPrefill(data.application.id, current.answers, previous), [data.application.id, current.answers, previous]);
+  useEffect(() => setValues({ ...initial, ...prefill }), [initial, prefill]);
   const artifact = data.artifacts.find(item => item.id === current.artifact_id);
   const changed = data.form.questions.some(question => (values[question.question_id] ?? '') !== initial[question.question_id]);
   const save = async () => {
@@ -91,6 +101,7 @@ function AnswersStep({ data, onSaved }: { data: History; onSaved: () => void }) 
   return <section className="panel" aria-labelledby="step1">
     <h2 id="step1">1. 제출할 내용</h2>
     {artifact && <p className="muted">이력서 파일: <a href={artifact.download_path} target="_blank" rel="noreferrer">{artifact.filename}</a> · SHA-256 {short(artifact.sha256)} (확정한 PDF 그대로 첨부합니다)</p>}
+    {Object.keys(prefill).length > 0 && <p className="muted" role="status">이름·이메일은 이전 지원서에 쓴 답변을 가져왔습니다. 확인한 뒤 저장하세요.</p>}
     <div className="answer-fields">{data.form.questions.map(field)}</div>
     {data.answer_issues.length > 0 && !changed && <ul className="issue-list">{data.answer_issues.map(issue => <li key={issue.code + issue.message}>{issue.message}</li>)}</ul>}
     <div className="action-row"><button className="primary" disabled={!changed || saving} onClick={save}>{saving ? '저장 중…' : '답변 저장'}</button>{changed && <span className="muted">저장하면 새 지원 내용 버전이 만들어지고, 이전 폼 확인·승인은 다시 해야 합니다.</span>}</div>
