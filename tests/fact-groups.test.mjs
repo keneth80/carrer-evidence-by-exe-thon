@@ -140,11 +140,12 @@ test('malformed structure output leaves facts untouched', () => {
   assert.equal(applyStructure(facts, { items: [{ n: 1, category: 'role', under: 1 }, { n: 0, category: 'employer', under: 1 }] }).facts, facts);
 });
 
-test('structure request preserves text and sends a strict schema without internal fact IDs', () => {
+test('structure request masks contact details and sends a strict schema without internal fact IDs', () => {
   const text = '문의 kim@example.com 010-1234-5678 000000-1000000';
   const request = buildStructureRequest(structureLines([fact('a', 'other', text), fact('b', 'employer', '예시랩')]), 'balanced');
   const body = JSON.stringify(request);
-  assert.ok(request.messages[1].content.includes(text));
+  assert.ok(request.messages[1].content.includes('문의 [이메일] [전화번호] [주민등록번호]'));
+  assert.ok(!body.includes('kim@example.com') && !body.includes('010-1234-5678') && !body.includes('000000-1000000'));
   assert.ok(!body.includes('"id"'));
   assert.equal(request.response_format.json_schema.schema, STRUCTURE_SCHEMA);
   assert.deepEqual(STRUCTURE_SCHEMA.properties.items.items.required, ['n', 'action', 'category', 'under', 'parts']);
@@ -228,7 +229,7 @@ test('whole source includes contact and header lines on one line while keeping t
   const request = buildStructureRequest(structureLines(facts), 'balanced', context);
   const [sourceBlock] = request.messages[1].content.split('\n\n');
   assert.equal(sourceBlock, 'source(원문 전체):\n' + [
-    '[s=0] 홍예시', '[s=1] hong@example.com', '[s=2] 경력사항',
+    '[s=0] 홍예시', '[s=1] [이메일]', '[s=2] 경력사항',
     '[s=3] 예시랩 프론트엔드 리드 2020.01 ~ 2023.02', '[s=4] 결제 화면을 다시 설계해 이탈률을',
     '[s=5] 12%에서 7%로 줄였습니다.', '[s=6] 디자인 시스템을 만들었습니다.',
     '[s=7] 사내 강의 3회 진행', '[s=8] Page 1',

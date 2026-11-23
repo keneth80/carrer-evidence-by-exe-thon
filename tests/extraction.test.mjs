@@ -38,6 +38,19 @@ test('Liner draft can combine PDF lines into one rewritten item with the origina
   assert.equal(draft.review[draft.facts[0].id].wording, text);
 });
 
+// 이름·머리글은 문맥 파악에 보내지만(S1-31) 이메일·전화번호·주민번호는 가려서 보낸다(2026-11-23 실이력서 테스트에서 그대로 전송된 것을 발견).
+// 가려도 줄 번호는 원문과 같아야 서버가 원문 범위로 근거를 읽는다.
+test('resume draft request masks contact details but keeps names and original line numbers', () => {
+  const source = { input_kind: 'text_pdf', pages: [{ page: 1, text: '홍예시\nhong@example.com · 010-1234-5678\n예시랩 프론트엔드 리드' }] };
+  const { messages } = buildResumeDraftRequest(source, 'balanced');
+  assert.doesNotMatch(JSON.stringify(messages), /hong@example\.com|010-1234-5678/);
+  assert.equal(messages[1].content, '[page=1] [s=0] 홍예시 [s=1] [이메일] · [전화번호] [s=2] 예시랩 프론트엔드 리드');
+  const draft = validateReviewDraft({ groups: [{ section: 'career', projects: [], entries: [
+    { category: 'employer', from: 2, to: 2, quote: null, text: null },
+  ] }] }, source, 'doc_1', []);
+  assert.equal(draft.facts[0].evidence[0].quote, '예시랩 프론트엔드 리드');
+});
+
 test('older career summary shares a heading while each item keeps its own source evidence', () => {
   const first = '예시사에서 서비스 운영을 담당했습니다.';
   const second = '가상랩에서 서비스 출시를 지원했습니다.';
@@ -95,7 +108,8 @@ test('only the owner can view the actual Liner messages sent and received for an
     const pending = await owner.get(path);
     assert.equal(pending.headers.get('cache-control'), 'no-store');
     assert.deepEqual(pending.body, { messages: { request: sentMessages, response: null } });
-    assert.match(sentMessages[1].content, /\[s=0\] 홍예시 \[s=1\] resume@example\.com \[s=2\] 경력/);
+    assert.match(sentMessages[1].content, /\[s=0\] 홍예시 \[s=1\] \[이메일\] \[s=2\] 경력/);
+    assert.doesNotMatch(JSON.stringify(request), /resume@example\.com/);
     assert.equal((await outsider.get(path)).status, 404);
     assert.equal((await client(api).get(path)).status, 401);
 

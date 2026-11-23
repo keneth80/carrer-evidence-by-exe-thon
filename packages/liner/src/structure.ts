@@ -1,7 +1,7 @@
 import { FACT_CATEGORIES, REVIEW_SECTIONS } from '../../resume/src/types.ts';
 import { STRUCTURE_ACTIONS } from '../../resume/src/structure.ts';
 import type { StructureContext, StructureLine, StructureOutput, StructureProvider } from '../../resume/src/structure.ts';
-import { callLinerJson, LINER_CHAT_MODEL } from './chat.ts';
+import { callLinerJson, LINER_CHAT_MODEL, redactPersonal } from './chat.ts';
 import type { LinerChatDeps } from './chat.ts';
 import { splitLines } from '../../resume/src/source.ts';
 import type { SourceText } from '../../resume/src/source.ts';
@@ -77,12 +77,13 @@ const SYSTEM_PROMPT = [
 ].join('\n');
 
 export function buildStructureRequest(lines: StructureLine[], routing: NonNullable<LinerChatDeps['routing']>, context?: StructureContext) {
-  const shown = lines.map(line => ({ n: line.n, s: context?.factLine[line.n] ?? null, category: line.category, text: line.statement }));
+  // 이름·머리글은 문맥 파악에 보내되(S1-31) 이메일·전화번호·주민번호는 가린다. 가려도 줄 번호는 그대로다.
+  const shown = lines.map(line => ({ n: line.n, s: context?.factLine[line.n] ?? null, category: line.category, text: redactPersonal(line.statement) }));
   // 한 줄로 보내더라도 원래 줄의 경계를 알아야 잇기·나누기를 판단할 수 있다.
   const source = (context?.source ?? [])
-    .map(line => `[s=${line.s}] ${line.text.replace(/[\r\n\u2028\u2029]+/g, ' ')}`)
+    .map(line => `[s=${line.s}] ${redactPersonal(line.text).replace(/[\r\n\u2028\u2029]+/g, ' ')}`)
     .join(' ');
-  const unclassified = (context?.unclassified ?? []).map(line => ({ w: line.w, s: line.s, text: line.text }));
+  const unclassified = (context?.unclassified ?? []).map(line => ({ w: line.w, s: line.s, text: redactPersonal(line.text) }));
   return {
     model: LINER_CHAT_MODEL,
     routing_strategy: routing,
@@ -129,7 +130,7 @@ export function buildResumeDraftRequest(source: SourceText, routing: NonNullable
   let lineNumber = 0;
   const sourceContent = source.pages.map(page => {
     const lines = splitLines(page.text).filter(line => line.text).map(line =>
-      `[s=${lineNumber++}] ${line.text.replace(/[\r\n\u2028\u2029]+/g, ' ')}`).join(' ');
+      `[s=${lineNumber++}] ${redactPersonal(line.text).replace(/[\r\n\u2028\u2029]+/g, ' ')}`).join(' ');
     return lines && source.input_kind === 'text_pdf' ? `[page=${page.page}] ${lines}` : lines;
   }).filter(Boolean).join(' ');
   return {
