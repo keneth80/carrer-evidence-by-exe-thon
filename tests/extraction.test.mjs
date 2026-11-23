@@ -38,6 +38,33 @@ test('Liner draft can combine PDF lines into one rewritten item with the origina
   assert.equal(draft.review[draft.facts[0].id].wording, text);
 });
 
+// 2026-11-23 실이력서 테스트: 초안 범위가 겹쳐 같은 문장이 두 항목에 들어가고(확정 PDF에 중복), 원문 글머리표가 문장에 남아
+// 렌더러 글머리표와 겹쳤다. 겹침은 원문 글자를 바꾸지 않고 큰 범위를 남기거나 문장 끝에서 나눠 없앤다.
+test('draft keeps the larger of nested spans and drops the leading bullet from the evidence', () => {
+  const text = '• 정산 배치를 재설계해 처리 시간을\n20% 줄였습니다.';
+  const source = { input_kind: 'text_pdf', pages: [{ page: 1, text }] };
+  const draft = validateReviewDraft({ groups: [{ section: 'career', projects: [], entries: [
+    { category: 'achievement', from: 0, to: 0, quote: null, text: null },
+    { category: 'responsibility', from: 0, to: 1, quote: null, text: null },
+  ] }] }, source, 'doc_1', []);
+  assert.deepEqual(draft.facts.map(fact => [fact.category, fact.statement]), [['responsibility', '정산 배치를 재설계해 처리 시간을 20% 줄였습니다.']]);
+  const [evidence] = draft.facts[0].evidence;
+  assert.deepEqual([evidence.start, evidence.quote], [2, '정산 배치를 재설계해 처리 시간을\n20% 줄였습니다.']);
+  assert.deepEqual(Object.keys(draft.review), draft.facts.map(fact => fact.id));
+});
+
+test('draft spans sharing a line are split at the sentence end inside that line', () => {
+  const text = '주문 화면을 설계하고\n운영했습니다. 장애 알림을\n자동화했습니다.';
+  const source = { input_kind: 'text_pdf', pages: [{ page: 1, text }] };
+  const draft = validateReviewDraft({ groups: [{ section: 'career', projects: [], entries: [
+    { category: 'responsibility', from: 0, to: 1, quote: null, text: null },
+    { category: 'responsibility', from: 1, to: 2, quote: null, text: null },
+  ] }] }, source, 'doc_1', []);
+  assert.deepEqual(draft.facts.map(fact => fact.statement), ['주문 화면을 설계하고 운영했습니다.', '장애 알림을 자동화했습니다.']);
+  const chars = Array.from(text);
+  for (const { evidence: [evidence] } of draft.facts) assert.equal(chars.slice(evidence.start, evidence.end).join(''), evidence.quote);
+});
+
 // 이름·머리글은 문맥 파악에 보내지만(S1-31) 이메일·전화번호·주민번호는 가려서 보낸다(2026-11-23 실이력서 테스트에서 그대로 전송된 것을 발견).
 // 가려도 줄 번호는 원문과 같아야 서버가 원문 범위로 근거를 읽는다.
 test('resume draft request masks contact details but keeps names and original line numbers', () => {
