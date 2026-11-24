@@ -153,15 +153,16 @@ test('call limit is global: the call past LINER_MAX_CALLS is refused before any 
   } finally { await env.done(); }
 });
 
-test('budget limit counts conservative reservations and refuses before fetch', async () => {
+// 예산은 끝난 호출의 확인된 비용 + 새 호출의 최악 예약으로 센다(S4-18). 결과 불명 호출은 예약 그대로(아래 unknown 테스트).
+test('budget limit counts verified cost of finished calls plus the new reservation and refuses before fetch', async () => {
   const env = await liveSetup('s03-budget-');
   try {
     const { api, http, revision } = env;
     const fetch = fakeFetch(() => json(SYNTHETIC_RESPONSE));
-    const deps = () => liveWorker(api, fetch, { budgetMicroUsd: 3000 });
+    const deps = () => liveWorker(api, fetch, { budgetMicroUsd: 2500 });
     const first = await createSearch(http, revision.id);
     assert.equal(await runSearchTask(deps(), first.taskId), 'succeeded');
-    assert.equal(fetch.calls.length, 1, 'second reservation (2000 + 2000) would exceed 3000');
+    assert.equal(fetch.calls.length, 1, 'second reservation (1000 verified + 2000 reserved) would exceed 2500');
     assert.equal((await jobsOf(http, first.searchId)).search.outcome, 'partial');
     const second = await createSearch(http, revision.id);
     assert.equal(await runSearchTask(deps(), second.taskId), 'failed');
@@ -355,8 +356,12 @@ test('config: live needs key and both caps, errors never echo the key; mock defa
   } finally { db.close(); }
 
   const example = readFileSync(new URL('../.env.example', import.meta.url), 'utf8');
-  assert.match(example, /^LINER_MAX_CALLS=0$/m);
+  // 예시 파일을 그대로 복사해도 유료 호출이 켜지지 않는다: 두 모드는 mock, 키는 비어 있다.
+  // 한도 값은 Liner로 바꿀 때 바로 쓰도록 채워 둔다(사용자 요청 2026-11-24). mock에서는 한도를 쓰지 않는다.
+  assert.match(example, /^LINER_MODE=mock$/m);
+  assert.match(example, /^CHAT_MODE=mock$/m);
   assert.match(example, /^LINER_API_KEY=$/m, '.env.example names the key without a value');
+  assert.equal(readConfig(Object.fromEntries(example.split('\n').filter(line => /^[A-Z_]+=/.test(line)).map(line => line.split(/=(.*)/s).slice(0, 2)))).liner, null, 'the copied example makes no paid calls');
 });
 
 test('mock mode stays the default: mock search runs never call fetch and keep synthetic labels', async () => {
