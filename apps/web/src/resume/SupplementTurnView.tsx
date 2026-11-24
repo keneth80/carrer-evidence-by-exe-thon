@@ -1,3 +1,4 @@
+import { HrReviewing } from './HrReviewing.tsx';
 import type { ResumeFact } from '../../../../packages/resume/src/types.ts';
 import type { SuggestionSet, SupplementCandidate, SupplementTurn } from './api.ts';
 import { ExampleBox } from './ExampleBox.tsx';
@@ -65,7 +66,7 @@ export function SupplementTurnView({ turn, busy, isAdded, factState, startFacts,
           const ids = picked?.set.target_fact_ids ?? item.fact_ids;
           const targets = ids.map(id => headFacts.find(fact => fact.id === id)).filter((fact): fact is ResumeFact => Boolean(fact));
           if (isDuplicateFinding(item) && targets.length >= 2 && onRemove) return <DedupeBox facts={targets} busy={busy} onKeep={(_keep, removeIds) => onRemove(removeIds)} />;
-          if (suggesting === index) return <p className="status-line" role="status">추천 문장을 만드는 중이에요(추천 문장 작성 → 근거 검토)…</p>;
+          if (suggesting === index) return <div><p className="status-line">추천 문장을 만드는 중이에요(추천 문장 작성 → 근거 검토)…</p><HrReviewing /></div>;
           if (picked) return <SuggestionPicker key={picked.set.options.map(option => option.text).join('|')} set={picked.set} reply={picked.reply} targets={targets} busy={busy} onAdopt={action => onAdopt?.(index, action)} />;
           return canSuggest && !progress && onSuggest ? <button type="button" className="outline small suggest-cta" disabled={busy} onClick={() => onSuggest(index)}>문장 추천받기</button> : null;
         })()}

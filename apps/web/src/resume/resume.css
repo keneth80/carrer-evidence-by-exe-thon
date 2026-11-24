@@ -195,3 +195,17 @@ mark{background:#ffe8a3;color:inherit;border-radius:3px;padding:0 1px}
 
 .notice.scan-warning{border:2px solid #d99a1c;background:#fff8e6;color:#5c4308}
 .notice.scan-warning strong{color:#8a5a00}
+/* HR 담당자 검토 중 연필 로딩바(S1-39) */
+.hr-reviewing{display:grid;gap:6px;padding:10px 12px;border:1px dashed #9fcfc9;border-radius:10px;background:#fbfffe}
+.hr-reviewing-text{margin:0;font-weight:700;color:#0b5e58}
+.hr-dots i{font-style:normal;animation:hr-dot 1.2s infinite}
+.hr-dots i:nth-child(2){animation-delay:.2s}.hr-dots i:nth-child(3){animation-delay:.4s}
+.hr-track{position:relative;height:24px;border-bottom:2px solid #d6ebe8;overflow:hidden}
+.hr-ink{position:absolute;left:0;bottom:-2px;height:3px;width:0;border-radius:2px;background:#0a8b82;animation:hr-ink 3.2s ease-in-out infinite}
+.hr-pencil{position:absolute;bottom:0;left:0;animation:hr-move 3.2s ease-in-out infinite}
+.hr-pencil-tip{display:inline-block;font-size:20px;line-height:1;transform-origin:0 100%;animation:hr-wiggle .32s ease-in-out infinite alternate}
+@keyframes hr-move{0%{left:0}80%{left:calc(100% - 24px)}100%{left:0}}
+@keyframes hr-ink{0%{width:0;opacity:1}80%{width:calc(100% - 24px);opacity:1}100%{width:calc(100% - 24px);opacity:0}}
+@keyframes hr-wiggle{from{transform:rotate(-8deg) translateY(0)}to{transform:rotate(6deg) translateY(-3px)}}
+@keyframes hr-dot{0%,60%,100%{opacity:.2}30%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.hr-ink,.hr-pencil,.hr-pencil-tip,.hr-dots i{animation:none}.hr-ink{width:40%}.hr-pencil{left:calc(40% - 2px)}}
