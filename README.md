@@ -76,14 +76,17 @@ npm ci
 cp .env.example .env
 ```
 
-기본값은 **mock 모드**입니다. API 키 없이 모든 화면과 흐름을 볼 수 있고, AI 응답은 규칙 기반 합성 응답이며 화면에 'mock'으로 표시됩니다.
+기본값은 **mock 모드**입니다. API 키 없이 모든 화면과 흐름을 볼 수 있고, AI 응답은 규칙 기반 합성 응답이며 화면에 'mock'으로 표시됩니다. API 키를 뺀 나머지 값(호출 한도·예산·라우팅·경로)은 모두 채워져 있어, Liner로 바꿀 때는 키와 모드만 바꾸면 됩니다.
 
 | 설정 | 기본값 | 뜻 |
 |---|---|---|
 | `CHAT_MODE` | `mock` | 이력서 읽기·HR 점검·문장 추천·JD 점검·맞춤 수정에 쓰는 AI. `liner`면 Liner Router API(유료) |
 | `LINER_MODE` | `mock` | 공고 검색. `live`면 Liner Web Search(유료)로 실제 공개 공고를 찾고, 아니면 합성 공고 목록 |
 | `DATABASE_PATH` | `.data/career-evidence.sqlite` | SQLite DB 파일. 처음 실행할 때 자동으로 만들어집니다 |
-| `OBJECT_DIR` | `.data/objects` | 올린 이력서·만든 PDF를 저장하는 폴더(`.env.example`에는 없고 기본값을 씁니다) |
+| `OBJECT_DIR` | `.data/objects` | 올린 이력서·만든 PDF를 저장하는 폴더 |
+| `LINER_CHAT_MAX_CALLS` · `LINER_CHAT_BUDGET_MICRO_USD` | `20` · `5000000`($5) | AI 대화 호출 수·예산 한도(`CHAT_MODE=liner`일 때만 씀) |
+| `LINER_MAX_CALLS` · `LINER_BUDGET_MICRO_USD` | `20` · `2000000`($2) | 공고 검색 호출 수·예산 한도(`LINER_MODE=live`일 때만 씀) |
+| `LINER_CHAT_ROUTING` | `quality` | 라우팅 전략(`cost`·`balanced`·`quality`) |
 | `API_PORT` | `4311` | API 포트 |
 | `DEMO_ORIGIN` | `http://127.0.0.1:4310` | 웹 주소. **바꾸지 않습니다**(웹·확장·API가 이 주소로 맞춰져 있습니다) |
 
@@ -127,7 +130,7 @@ Career Evidence worker: search_jobs(provider=mock) · tailor_resume(chat=mock, s
 
 ### 6. Liner API로 실행하기(유료)
 
-`.env`를 열어 아래 값을 바꾸고 `npm run dev`를 다시 실행합니다. 키는 `.env`에만 넣고 코드·커밋에 적지 않습니다. 한도 값은 예시입니다.
+`.env`에서 키를 넣고 모드를 바꾼 뒤 `npm run dev`를 다시 실행합니다(한도 값은 `.env.example`에 이미 들어 있습니다). 키는 `.env`에만 넣고 코드·커밋에 적지 않습니다.
 
 ```bash
 LINER_API_KEY=<발급받은 키>
@@ -144,7 +147,7 @@ LINER_MAX_CALLS=20
 LINER_BUDGET_MICRO_USD=2000000        # $2
 ```
 
-- 한도는 DB 원장 기준의 **전체 합계**입니다. 넘으면 호출하지 않고, 그 단계는 규칙 결과로 돌아가거나 화면에 안내가 나옵니다.
+- 한도는 DB 원장 기준의 **전체 합계**입니다. 호출 전에 최악 비용을 예약하고, 끝난 호출은 확인된 실제 비용으로 셉니다(보내는 중이거나 결과를 알 수 없는 호출은 예약 그대로). 넘으면 호출하지 않고, 그 단계는 규칙 결과로 돌아가거나 화면에 안내가 나옵니다.
 - 참고 비용(2026-11-24 실측, `CHAT_MODE=liner`·`LINER_MODE=mock`): 실제 이력서로 읽기 → HR 점검·문장 추천 → JD 점검 → 맞춤 수정까지 Router chat 8건, 약 $0.56(이력서 읽기 1건 약 $0.16).
 - `CHAT_MODE=liner`이면 이력서 내용·확정 경력·공고가 Liner로 전송됩니다(이메일·전화번호는 가려서 보냄). 화면에도 같은 안내가 나옵니다.
 - 이력서 읽기에서 AI 정리가 돌지 않았으면 확인 화면에 **AI 정리 없이 읽은 결과** 안내가 나옵니다(mock이거나 한도·호출 실패).
@@ -182,6 +185,7 @@ rm -rf .data
 | `LINER_CHAT_MAX_CALLS_INVALID`, `LINER_CHAT_BUDGET_INVALID` | `CHAT_MODE=liner`인데 대화 한도가 0이거나 비어 있음 | 1 이상의 정수로 넣기(6단계 예시) |
 | `LINER_MAX_CALLS_INVALID`, `LINER_BUDGET_INVALID` | `LINER_MODE=live`인데 검색 한도가 0이거나 비어 있음 | 1 이상의 정수로 넣기 |
 | `LINER_CHAT_ROUTING_INVALID` | 라우팅 값 오타 | `cost`, `balanced`, `quality` 중 하나 |
+| 화면에 `답변을 만들지 못했어요 (LINER_BUDGET_LIMIT)` | 이 DB에서 쓴 비용 + 이번 호출의 최악 예약이 대화 예산을 넘음 | `.env`의 `LINER_CHAT_BUDGET_MICRO_USD`를 올리고 다시 실행하거나, `.data`를 지워 새 DB로 시작 |
 | `LOCAL_DEV_AUTH_NOT_FOR_PRODUCTION` | `NODE_ENV=production`으로 실행 | 이 버전은 로컬 실행 전용입니다. `NODE_ENV`를 지우고 실행 |
 | 스캔본 PDF가 오래 걸림 | 그림에서 글자를 인식하는 중(최대 8쪽, 100초 한도) | 기다리거나, 텍스트를 붙여넣어 등록 |
 | 확인 화면에 항목이 하나도 안 보임 | 확인할 것이 없어 묶음이 모두 접혀 있음 | 묶음의 **펼치기**를 누릅니다 |

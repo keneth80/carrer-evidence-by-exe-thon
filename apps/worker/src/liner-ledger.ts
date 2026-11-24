@@ -4,7 +4,7 @@ import type { LinerLedger } from '../../../packages/liner/src/web-search.ts';
 
 // Liner 유료 호출 원장. ce7_provider_calls(migration 007)를 그대로 쓴다.
 // 개발 계정 하나를 공유하므로 호출 수·예산 한도는 workspace와 무관하게 이 DB 전체의 liner 행으로 센다.
-// 예약은 실패·결과 불명이어도 되돌리지 않는다(접수 불명 호출의 한도를 근거 없이 돌려주지 않는다).
+// 결과 불명 호출의 예약은 되돌리지 않는다(접수 불명 호출의 한도를 근거 없이 돌려주지 않는다). 예산 계산은 budgetUsedMicroUsd.
 
 export const LINER_PROVIDER = 'liner';
 
@@ -15,6 +15,14 @@ export function readLinerUsage(db: DatabaseSync, purpose: 'search' | 'chat' = 's
   const row = db.prepare(`SELECT count(*) AS calls, coalesce(sum(reserved_micro_usd), 0) AS reserved, coalesce(sum(verified_micro_usd), 0) AS verified,
     coalesce(sum(status = 'unknown'), 0) AS unknown FROM ce7_provider_calls WHERE provider = ? AND purpose = ?`).get(LINER_PROVIDER, purpose);
   return { calls: Number(row?.calls), reserved_micro_usd: Number(row?.reserved), verified_micro_usd: Number(row?.verified), unknown_calls: Number(row?.unknown) };
+}
+
+// 예산 한도에 쓰는 사용액(DECISIONS S4-18). 예약은 최악 비용이라 실제의 몇 배다. 끝나서 실제 비용이 확인된 호출
+// (성공의 사용량, 처리되지 않은 실패의 0)은 그 값으로 세고, 보내는 중·결과 불명 호출은 예약 그대로 센다.
+export function budgetUsedMicroUsd(db: DatabaseSync, purpose: 'search' | 'chat'): number {
+  const row = db.prepare(`SELECT coalesce(sum(CASE WHEN status IN ('succeeded','failed') AND verified_micro_usd IS NOT NULL THEN verified_micro_usd ELSE reserved_micro_usd END), 0) AS used
+    FROM ce7_provider_calls WHERE provider = ? AND purpose = ?`).get(LINER_PROVIDER, purpose);
+  return Number(row?.used);
 }
 
 export function createLinerLedger(deps: LinerLedgerDeps): LinerLedger {
@@ -30,7 +38,7 @@ export function createLinerLedger(deps: LinerLedgerDeps): LinerLedger {
         const usage = readLinerUsage(db, purpose);
         const refusal = !leased ? 'LINER_LEASE_NOT_HELD' as const
           : usage.calls >= deps.maxCalls ? 'LINER_CALL_LIMIT' as const
-            : usage.reserved_micro_usd + reserveMicroUsd > deps.budgetMicroUsd ? 'LINER_BUDGET_LIMIT' as const : null;
+            : budgetUsedMicroUsd(db, purpose) + reserveMicroUsd > deps.budgetMicroUsd ? 'LINER_BUDGET_LIMIT' as const : null;
         if (refusal) { db.exec('ROLLBACK'); return { ok: false, code: refusal }; }
         const callId = `pcall_${randomUUID().replaceAll('-', '')}`;
         db.prepare(`INSERT INTO ce7_provider_calls (id, workspace_id, task_id, provider, purpose, request_hash, status, reserved_micro_usd, verified_micro_usd, lease_generation, created_at_ms, updated_at_ms)
