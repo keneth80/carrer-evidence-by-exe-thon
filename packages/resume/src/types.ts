@@ -17,7 +17,7 @@ export type EvidenceReference = DocumentEvidence | UserStatementEvidence;
 export type ResumeFact = { id: string; category: FactCategory; statement: string; evidence: EvidenceReference[] };
 
 // 사실 후보가 아닌 줄을 남기는 경고. API에서는 문자열로 직렬화한다(ExtractionDraft.warnings).
-export const WARNING_CODES = ['PERSONAL_INFO_EXCLUDED', 'PREFERENCE_NOT_FACT', 'NEGATED_OR_UNVERIFIED', 'UNCLASSIFIED_LINE', 'EMPTY_TEXT', 'NO_FACT_CANDIDATES', 'CANDIDATE_LIMIT_REACHED'] as const;
+export const WARNING_CODES = ['PERSONAL_INFO_EXCLUDED', 'PREFERENCE_NOT_FACT', 'NEGATED_OR_UNVERIFIED', 'UNCLASSIFIED_LINE', 'EMPTY_TEXT', 'NO_FACT_CANDIDATES', 'CANDIDATE_LIMIT_REACHED', 'OCR_TEXT'] as const;
 export type WarningCode = typeof WARNING_CODES[number];
 export type ExtractionWarning = { code: WarningCode; page: number | null; start: number | null; end: number | null; message: string };
 

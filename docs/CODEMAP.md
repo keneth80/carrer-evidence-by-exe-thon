@@ -41,7 +41,7 @@
 | 추출 작업 | `apps/api/src/resume/extraction.ts` | `extract_resume` claim·lease·결과 저장·복구 |
 | 저장소·조회 | `apps/api/src/resume/storage.ts`, `apps/api/src/resume/repository.ts` | 파일 저장(ID 경로만), workspace 조건 SQL |
 | 추출 규칙 | `packages/resume/src/pdf.ts`, `pdf-worker.ts`, `docx.ts`, `docx-worker.ts`, `candidates.ts`, `confirm.ts`, `source.ts`, `types.ts` | pdfjs 텍스트·mammoth Word 텍스트(worker thread·시간/메모리 한도, docx는 업로드 시 ZIP 구조·크기 검사), 규칙 후보, 근거·문장 범위 검증·hash, code point 위치 |
-| 화면 | `apps/web/src/resume/` | `SessionGate`, `StartPage`(U01), `ReviewPage`·`FactEditor`·`FactBulkBar`·`SourcePanel`·`WarningsPanel`(U02), `bulk.ts`(일괄 포함/제외·원문 줄 묶음 추가, 순수 함수), `attention.ts`(확인할 것·묶음 접기·적용 가능한 문구 제안, 순수 함수, S1-33), `api.ts` |
+| 화면 | `apps/web/src/resume/` | `SessionGate`, `StartPage`(U01), `ReviewPage`·`FactEditor`·`FactBulkBar`·`SourcePanel`·`WarningsPanel`(U02), `bulk.ts`(일괄 포함/제외·원문 줄 묶음 추가, 순수 함수), `attention.ts`(확인할 것·묶음 접기·적용 가능한 문구 제안, 순수 함수, S1-37), `api.ts` |
 
 ## S02 경력 기반 mock 검색 코드 (2026-11-17 구현)
 
@@ -157,4 +157,6 @@
 | 이력서 정리의 라이너 송수신 메시지 | `packages/liner/src/chat.ts`(실제 송수신 본문 전달), `apps/api/src/resume/liner-messages.ts`(임시 보관), `apps/api/src/product.ts`(로컬 개발용 작업 소유자 조회), `apps/web/src/resume/ExtractionProgress.tsx`(본문 표시), `tests/extraction.test.mjs` |
 | HR 검토 구역·문구 제안 | `packages/liner/src/structure.ts`(review JSON), `apps/api/src/resume/extraction.ts`(검사·작업 결과 저장), `apps/api/src/product.ts`(로컬 개발용 소유자 조회), `apps/web/src/resume/FactEditor.tsx`, `packages/tailor/src/fact-groups.ts` |
 | 원문 기반 Liner 검토 초안 | `packages/liner/src/structure.ts`(groups JSON), `apps/api/src/resume/review-draft.ts`(근거 위치·문구 검사), `apps/api/src/resume/extraction.ts`(추출 경로), `apps/web/src/resume/FactEditor.tsx`(초안·선택), `packages/tailor/src/fact-groups.ts`(근무 이력 묶음) |
+| PDF 양식 대응: 위치 기반 읽기(S1-34) | `packages/resume/src/pdf-layout.ts`(`pageText`, `isScrambled`), `packages/resume/src/pdf.ts`, `tests/pdf-layout.test.mjs` |
+| 스캔본 PDF 글자 인식(S1-35) | `packages/resume/src/pdf-ocr.ts`(`looksScanned`, `ocrPdfIsolated`), `pdf-ocr-worker.ts`, `apps/api/src/resume/extraction.ts`(`extract`의 OCR 분기), `tests/pdf-ocr.test.mjs` |
 | 채용 사이트 우선 검색(S2-14)·에이전트 보충 검색·HR 실무 기준(S1-29) | `packages/liner/src/web-search.ts`(`SITE_GROUPS`, `compactQuery`, `linerQueryPlan`, 경유 링크 `wrappedSiteId`, `createLinerResearchProvider`), `packages/tailor/src/research.ts`(`researchJob`, 결과 거르기), `packages/tailor/src/tailor-pipeline.ts`(`matchRequirements` 앞 보충), `apps/worker/src/main.ts`(research 연결), `packages/liner/src/persona.ts`(`HR_REVIEW_GUIDE` 실무 기준), `packages/liner/src/tailor-stages.ts`(면접 예상 질문·`company_context`) |

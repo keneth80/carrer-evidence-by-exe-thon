@@ -3,7 +3,7 @@ import { parseWarning } from '../../../../packages/resume/src/types.ts';
 import type { FactReview } from '../../../../packages/resume/src/types.ts';
 import type { EditableFact } from './FactEditor.tsx';
 
-// 확정 화면 확인 부담 줄이기(DECISIONS S1-33). 실제 이력서 62개 중 34개는 원문 그대로라 확인할 것이 없었는데 모두 같은 비중으로 펼쳐졌다.
+// 확정 화면 확인 부담 줄이기(DECISIONS S1-37). 실제 이력서 62개 중 34개는 원문 그대로라 확인할 것이 없었는데 모두 같은 비중으로 펼쳐졌다.
 // 사용자가 판단해야 하는 항목만 '확인할 것'으로 앞에 두고, 그런 항목이 없는 묶음은 접는다. 묶음을 펼쳐 고치고 빼는 기능은 그대로다.
 
 export type AttentionReason = 'not_in_source' | 'sensitive_excluded' | 'user_added';

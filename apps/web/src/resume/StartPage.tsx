@@ -72,7 +72,7 @@ export function StartPage() {
       <span className="eyebrow">U01 · 이력서 등록</span>
       {/* 제품 목적(사용자 지시 2026-11-21): 공고 추천이 아니라, 관심 가는 공고에 맞춰 이력서를 수정·보완하는 것. */}
       <h1>관심 있는 공고에 맞춰<br /><span>이력서를 다듬어 드릴게요.</span></h1>
-      <p>지금은 <strong>텍스트가 있는 PDF(최대 {MAX_PDF_MB}MB, 30쪽)</strong>, <strong>Word(.docx, 최대 {MAX_PDF_MB}MB)</strong>, <strong>텍스트 붙여넣기</strong>를 지원합니다. Word는 본문과 표만 읽고 머리글·바닥글·이미지는 읽지 않습니다. 옛 Word(.doc)와 스캔 이미지 PDF는 읽지 못하니 .docx로 저장하거나 내용을 붙여넣어 주세요.</p>
+      <p>지금은 <strong>PDF(최대 {MAX_PDF_MB}MB, 30쪽)</strong>, <strong>Word(.docx, 최대 {MAX_PDF_MB}MB)</strong>, <strong>텍스트 붙여넣기</strong>를 지원합니다. Word는 본문과 표만 읽고 머리글·바닥글·이미지는 읽지 않습니다. 스캔본 PDF(그림으로 된 PDF, 최대 8쪽)는 글자 인식으로 읽는데, 일부 글자가 인식되지 않거나 틀릴 수 있어 확인 화면에서 경고를 보여 드립니다. 옛 Word(.doc)는 읽지 못하니 .docx로 저장하거나 내용을 붙여넣어 주세요.</p>
     </section>
     <div className="intake-grid">
       <section className="panel" aria-labelledby="upload-title">

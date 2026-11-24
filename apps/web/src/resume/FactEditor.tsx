@@ -63,7 +63,7 @@ function GroupHead({ group, items, readOnly, onToggle, open, onOpen }: { group: 
 
 export function FactEditor({ items, review, source, readOnly, onChange, onToggleGroup, onShow, inputKind }: Props) {
   const pages = useMemo(() => new Map(source?.pages.map(page => [page.page, Array.from(page.text)])), [source]);
-  // 사용자가 직접 펼치거나 접은 묶음만 기억한다. 나머지는 확인할 항목이 있으면 펼치고 없으면 접는다(S1-33).
+  // 사용자가 직접 펼치거나 접은 묶음만 기억한다. 나머지는 확인할 항목이 있으면 펼치고 없으면 접는다(S1-37).
   // 접는 것은 묶음에 직접 든 항목뿐이다. 회사·프로젝트 같은 하위 묶음 제목은 늘 보여야 훑어볼 수 있다.
   const [opened, setOpened] = useState<Record<string, boolean>>({});
   if (items.length === 0) return <p className="muted">경력 항목이 없습니다. 왼쪽 원문에서 줄을 골라 추가하세요.</p>;

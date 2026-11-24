@@ -83,6 +83,6 @@ export function ExtractionProgress({ task, since }: { task: Task | null; since: 
         <span className="agent-step-note">{index < step ? '' : index === step ? '진행 중' : '대기'}</span>
       </li>)}
     </ol>
-    <p className="muted">새로고침해도 같은 작업을 이어서 확인합니다. AI 정리는 보통 10~30초 걸리고, 실패하면 규칙으로 나눈 결과를 보여 드려요.</p>
+    <p className="muted">새로고침해도 같은 작업을 이어서 확인합니다. AI 정리는 보통 10~30초 걸리고, 실패하면 규칙으로 나눈 결과를 보여 드려요. 스캔본은 글자 인식 때문에 1분쯤 더 걸릴 수 있어요.</p>
   </div>;
 }

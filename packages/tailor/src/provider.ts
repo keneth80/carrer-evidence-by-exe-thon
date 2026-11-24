@@ -21,6 +21,30 @@ export type ChatProvider = { readonly mode: 'mock' | 'live'; respond(input: Chat
 // provider 응답 형식 검사. live 모델이 계약과 다른 모양을 돌려주면 저장 전에 거절한다.
 const OPERATIONS = ['replace', 'insert', 'remove', 'reorder'];
 const isText = (value: unknown, max: number, min = 0) => typeof value === 'string' && value.length >= min && value.length <= max;
+// 형식 검사에 걸린 이유(내용 없이 필드 이름과 길이만). 실호출에서 수정안이 통째로 거절됐을 때 원인을 알 수 없었다(관찰 2026-11-21).
+export function chatOutputProblem(value: unknown): string | null {
+  if (typeof value !== 'object' || value === null) return 'not_object';
+  const output = value as Record<string, unknown>;
+  const size = (item: unknown) => typeof item === 'string' ? item.length : typeof item;
+  if (!isText(output.reply, 4000)) return `reply:${size(output.reply)}`;
+  if (!Array.isArray(output.changes) || output.changes.length > 20) return `changes:${Array.isArray(output.changes) ? output.changes.length : typeof output.changes}`;
+  if (!Array.isArray(output.questions) || output.questions.length > 10) return `questions:${Array.isArray(output.questions) ? output.questions.length : typeof output.questions}`;
+  const question = output.questions.find(item => !isText(item, 500, 1));
+  if (question !== undefined) return `question:${size(question)}`;
+  for (const item of output.changes) {
+    if (typeof item !== 'object' || item === null) return 'change:not_object';
+    const change = item as Record<string, unknown>;
+    if (!OPERATIONS.includes(String(change.operation))) return 'change.operation';
+    if (!isText(change.block_id, 128, 1)) return `change.block_id:${size(change.block_id)}`;
+    if (!(change.before === null || isText(change.before, 2000))) return `change.before:${size(change.before)}`;
+    if (!(change.after === null || isText(change.after, 2000))) return `change.after:${size(change.after)}`;
+    if (!Array.isArray(change.fact_ids) || change.fact_ids.length > 50 || !change.fact_ids.every(id => isText(id, 128, 1))) return 'change.fact_ids';
+    if (!isText(change.reason, 500, 1)) return `change.reason:${size(change.reason)}`;
+    if (typeof change.needs_fact_confirmation !== 'boolean') return 'change.needs_fact_confirmation';
+  }
+  return null;
+}
+
 export function isChatOutput(value: unknown): value is ChatOutput {
   if (typeof value !== 'object' || value === null) return false;
   const output = value as Record<string, unknown>;

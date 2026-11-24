@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { extractPdfTextIsolated, ExtractionError } from '../../../../packages/resume/src/pdf.ts';
+import { looksScanned, ocrPdfIsolated, OCR_LIMITS } from '../../../../packages/resume/src/pdf-ocr.ts';
 import { extractDocxTextIsolated } from '../../../../packages/resume/src/docx.ts';
 import { extractCandidates } from '../../../../packages/resume/src/candidates.ts';
 import { normalizePastedText } from '../../../../packages/resume/src/source.ts';
@@ -18,12 +19,14 @@ import type { ObjectStore } from './storage.ts';
 import { validateReviewDraft } from './review-draft.ts';
 
 // extract_resume 작업 실행기. 본문 읽기와 규칙 분류는 로컬이라 lease 만료 후 재실행해도 안전하다.
-// structure가 있으면(CHAT_MODE=liner) 분류·묶음 보정을 위해 유료 호출을 한 번 한다(S1-30). 첫 시도에서만 보내고, 실패하면 규칙 분류 그대로 저장한다.
+// structure가 있으면(CHAT_MODE=liner) 원문 전체로 검토 초안을 만드는 유료 호출을 한 번 한다(S1-31, 병합 결정 S1-38). 첫 시도에서만 보내고, 실패하면 규칙 분류 그대로 저장한다.
 // 결과 저장은 lease owner·generation·만료를 transaction 안에서 다시 확인한다(CLAUDE.md 불변 조건).
 
 export type ExtractionDeps = { db: DatabaseSync; store: ObjectStore; owner: string; leaseMs: number; now: () => number; structure?: StructureProvider | null };
 // lease를 잃고 다시 집힌 횟수의 상한. 넘으면 무한 재시도 대신 실패로 끝내고 붙여넣기 안내를 보여준다.
 export const MAX_EXTRACTION_ATTEMPTS = 3;
+// 글자 인식 뒤 한 쪽의 글자가 이보다 적으면 그 쪽은 거의 읽지 못한 것으로 알린다.
+const WEAK_PAGE_CHARS = 20;
 
 type Claim = { taskId: string; workspaceId: string; documentId: string; generation: number };
 type Outcome = { status: 'review_required' | 'failed'; facts: ResumeFact[]; warnings: string[]; errorCode: string | null; source: SourceText | null; review?: Record<string, FactReview> };
@@ -85,8 +88,25 @@ async function extract(document: DocumentRow, bytes: Buffer): Promise<Outcome> {
     if (error instanceof ExtractionError) return failed(error.code, error.message);
     return failed('EXTRACTION_INTERNAL_ERROR', '추출 중 예기치 않은 오류가 발생했습니다.');
   }
+  // 스캔본 구분(S1-35): 글자 정보가 없는 PDF만 글자 인식 경로로 보낸다. 글자가 있는 PDF는 인식기를 거치지 않는다.
+  // 인식한 글에는 오탈자·빠진 글자가 있을 수 있어 항상 경고를 남기고, 거의 읽지 못한 쪽 수를 함께 알린다.
+  let recognized: { pages: number; weak: number } | null = null;
+  if (document.input_kind === 'text_pdf' && looksScanned(source)) {
+    let read: SourceText | null = null;
+    try {
+      read = await ocrPdfIsolated(bytes);
+    } catch (error) {
+      if (error instanceof ExtractionError && error.code === 'OCR_TIMEOUT') return failed(error.code, error.message);
+    }
+    if (!read || looksScanned(read)) return failed('OCR_NO_TEXT', '스캔본(그림으로 된 PDF)으로 보이지만 글자를 인식하지 못했습니다. 더 선명한 파일을 올리거나 내용을 붙여넣어 주세요.');
+    source = read;
+    recognized = { pages: read.pages.length, weak: read.pages.filter(page => page.text.replace(/\s/g, '').length < WEAK_PAGE_CHARS).length };
+  }
   const candidates = extractCandidates(source, document.id);
-  const warnings = candidates.warnings.map(formatWarning);
+  const warnings = [
+    ...(recognized ? [`OCR_TEXT@- 스캔본으로 확인되어 그림에서 글자를 인식했습니다(${recognized.pages}쪽, 최대 ${OCR_LIMITS.maxPages}쪽). 일부 글자가 인식되지 않았거나 틀릴 수 있습니다.${recognized.weak > 0 ? ` ${recognized.weak}쪽은 글자를 거의 인식하지 못했습니다.` : ''}`] : []),
+    ...candidates.warnings.map(formatWarning),
+  ];
   if (candidates.facts.length === 0) {
     const code = candidates.warnings.some(item => item.code === 'EMPTY_TEXT') ? 'EMPTY_TEXT' : 'NO_FACT_CANDIDATES';
     return { status: 'failed', facts: [], warnings, errorCode: code, source };

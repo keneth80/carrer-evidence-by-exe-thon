@@ -23,14 +23,16 @@ import { recentSearch } from '../search/recent.ts';
 type Loaded = { summary: DocumentSummary; draft: ExtractionDraft | null; source: SourceText | null; revision: FactRevision | null; review?: Record<string, FactReview> };
 
 const failureHelp: Record<string, string> = {
-  EMPTY_TEXT: '텍스트를 읽지 못했어요. 스캔 이미지 PDF일 수 있습니다. 내용을 텍스트로 붙여넣거나 텍스트가 있는 PDF를 올려 주세요.',
+  EMPTY_TEXT: '텍스트를 읽지 못했어요. 내용을 텍스트로 붙여넣거나 다른 파일을 올려 주세요.',
+  OCR_NO_TEXT: '스캔본(그림으로 된 PDF)으로 보이지만 글자를 인식하지 못했어요. 더 선명하게 스캔한 파일을 올리거나 내용을 텍스트로 붙여넣어 주세요.',
+  OCR_TIMEOUT: '스캔본의 글자를 인식하는 데 시간이 너무 오래 걸렸어요. 쪽 수를 줄여 올리거나 내용을 텍스트로 붙여넣어 주세요.',
   PDF_ENCRYPTED: '암호가 걸린 PDF입니다. 암호를 해제한 PDF를 올리거나 내용을 붙여넣어 주세요.',
   PDF_INVALID: 'PDF 구조를 읽을 수 없습니다. 다시 저장한 PDF를 올리거나 내용을 붙여넣어 주세요.',
   PDF_PARSE_FAILED: 'PDF를 여는 중 오류가 났습니다. 다른 PDF를 올리거나 내용을 붙여넣어 주세요.',
   PDF_TOO_MANY_PAGES: '30쪽을 넘는 PDF는 읽지 않습니다. 필요한 부분을 붙여넣어 주세요.',
 };
 
-// 확인할 것만 맨 위에 모아 알린다(S1-33). 원문 그대로인 묶음은 접혀 있으니 제목만 훑고 저장해도 된다.
+// 확인할 것만 맨 위에 모아 알린다(S1-37). 원문 그대로인 묶음은 접혀 있으니 제목만 훑고 저장해도 된다.
 function AttentionNotice({ summary }: { summary: AttentionSummary }) {
   const parts = [
     ...(['not_in_source', 'sensitive_excluded', 'user_added'] as const).filter(reason => summary[reason] > 0).map(reason => `${attentionLabel[reason]} ${summary[reason]}`),
@@ -128,6 +130,7 @@ export function ReviewPage({ documentId }: { documentId: string }) {
     } finally { setSaving(false); }
   };
 
+  const scanNote = draft?.warnings.find(warning => warning.startsWith('OCR_TEXT@- '))?.slice('OCR_TEXT@- '.length) ?? null;
   const includedCount = items.filter(item => item.included).length;
   const invalidCount = items.filter(item => item.included && !isWithinEvidence(item)).length;
   const linerTransmission = summary.latest_task?.provider_transmission;
@@ -156,6 +159,11 @@ export function ReviewPage({ documentId }: { documentId: string }) {
     </div>}
     {/* 확정 경력이 있고 수정 중이 아닐 때 에이전트 점검·보완을 맨 앞에 보여 준다(S1-16). */}
     {revision && !editing && draft && <SupplementSection documentId={document.id} extractionId={draft.id} head={revision} onConfirmed={refresh} />}
+    {/* 스캔본 경고(S1-35): 글자 인식 결과라 빠지거나 틀린 글자가 있을 수 있음을 눈에 띄게 알린다. 서버가 남긴 경고 문구(쪽 수 포함)를 그대로 보여 준다. */}
+    {scanNote && <div role="alert" className="notice scan-warning"><strong>⚠ 스캔본 PDF입니다 · 글자 인식 결과</strong><span>{scanNote} 원본과 꼭 대조해 주세요. 잘못 읽힌 항목은 빼고 저장한 뒤 HR 전문가 점검에서 직접 쓴 문장으로 보완하거나, 정확한 내용을 텍스트로 붙여넣어 등록해 주세요(이 화면에서는 읽은 글에 없는 표현으로 고쳐 저장할 수 없어요).</span></div>}
+    {/* AI 정리가 돌지 않았으면(mock·한도 초과·호출 실패) 조용히 규칙 결과만 보이지 않게 알린다. 작업의 실제 전송 상태로 판단한다. */}
+    {!revision && draft?.status === 'review_required' && summary.latest_task?.kind === 'extract_resume' && summary.latest_task.provider_transmission !== 'completed'
+      && <div className="notice"><strong>AI 정리 없이 읽은 결과</strong><span>{summary.latest_task.provider_transmission === 'unknown' ? 'AI 정리 호출이 실패했거나 응답을 확인하지 못해' : 'AI 정리가 꺼져 있거나 사용 한도에 걸려'} 규칙으로 줄을 나눈 결과만 보여 드립니다. 항목이 조각나 보일 수 있어요.</span></div>}
     {!revision && draft?.status === 'review_required' && <div className="notice"><strong>아직 확정 전</strong><span>아래 항목은 자동 추출 후보입니다. 확인하고 저장해야 확정 경력이 됩니다.</span></div>}
     {draft && <div className="review-grid">
       <section className="panel" aria-labelledby="source-title">

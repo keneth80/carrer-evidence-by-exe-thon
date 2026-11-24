@@ -192,3 +192,6 @@ mark{background:#ffe8a3;color:inherit;border-radius:3px;padding:0 1px}
 .suggest-target{display:grid;gap:4px;font-size:13px}
 .suggest-target select{max-width:100%}
 @media (max-width:640px){.suggest-option{grid-template-columns:auto 1fr}.suggest-option .tag{grid-column:2}.suggest-text,.suggest-own{grid-column:1 / -1}}
+
+.notice.scan-warning{border:2px solid #d99a1c;background:#fff8e6;color:#5c4308}
+.notice.scan-warning strong{color:#8a5a00}

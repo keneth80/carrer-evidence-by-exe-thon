@@ -160,7 +160,8 @@ test('S01 rejects unsupported input, forged evidence and requests without sessio
     await api.settle();
     const blankDoc = (await http.get(`/api/v1/resume-documents/${blankId}`)).body;
     assert.equal(blankDoc.extraction_status, 'failed');
-    assert.equal(blankDoc.error_code, 'EMPTY_TEXT');
+    // 글자 정보가 없는 PDF는 스캔본으로 구분해 글자 인식을 시도한다(S1-35). 빈 쪽은 인식할 글자가 없어 '스캔본 인식 실패'로 끝난다.
+    assert.equal(blankDoc.error_code, 'OCR_NO_TEXT');
     assert.equal((await http.get(`/api/v1/resume-documents/${blankId}/extraction`)).body.status, 'failed');
     assert.equal((await http.get(`/api/v1/resume-documents/${broken}`)).body.extraction_status, 'failed');
 

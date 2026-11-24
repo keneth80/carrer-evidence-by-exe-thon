@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { attentionReason, applicableWording, groupNeedsAttention, attentionSummary } from '../apps/web/src/resume/attention.ts';
 
-// 확정 화면 확인 부담 줄이기(S1-33). 원문 그대로인 항목은 확인할 것이 없으므로 묶음을 접고,
+// 확정 화면 확인 부담 줄이기(S1-37). 원문 그대로인 항목은 확인할 것이 없으므로 묶음을 접고,
 // 사용자가 판단해야 하는 항목만 '확인할 것'으로 앞에 둔다. 화면에 보이는 문장은 저장되는 문장과 같아야 한다.
 
 const QUOTE = '결제 시스템을 설계하고 운영했다.';
