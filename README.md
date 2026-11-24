@@ -39,35 +39,152 @@
 
 ## 실행 방법
 
-필요한 것: Node.js 24.x(`.nvmrc`), npm 11 이상.
+이 서비스는 공개 주소 없이 **내 컴퓨터에서 실행**합니다. 웹·API·작업 처리기(worker)가 모두 `127.0.0.1`에서만 열리고, 로그인은 로컬 개발용 연결(이름만 입력)입니다.
+아래 절차는 macOS, Node.js 24.19, npm 11.17에서 새로 받은 `main`으로 처음부터 끝까지 확인했습니다(2026-11-24).
+
+### 1. 준비물
+
+| 항목 | 필요한 버전 | 확인 명령 | 비고 |
+|---|---|---|---|
+| Node.js | 24.12 이상 24.x | `node -v` | `.nvmrc`가 24입니다. nvm을 쓰면 `nvm install 24 && nvm use` |
+| npm | 11 이상 | `npm -v` | Node 24에 함께 설치됩니다 |
+| Git | 아무 버전 | `git --version` | |
+| 비어 있는 포트 | 4310(웹), 4311(API) | `lsof -i :4310 -i :4311` | 다른 프로그램이 쓰고 있으면 실행이 멈춥니다 |
+| Google Chrome | 선택 | | 확장 프로그램으로 지원서 제출까지 해 볼 때만 필요합니다([7단계](#7-chrome-확장으로-지원서-제출하기선택)) |
+| Python 3 + PyYAML·jsonschema | 선택 | | `npm run check:contracts`를 돌릴 때만 필요합니다 |
+
+### 2. 받기와 설치
+
+```bash
+git clone https://github.com/keneth80/carrer-evidence-by-exe-thon.git
+```
+
+```bash
+cd carrer-evidence-by-exe-thon
+```
 
 ```bash
 npm ci
-cp .env.example .env     # 값은 직접 채웁니다. API 키는 코드에 적지 않습니다.
-npm run dev              # 웹 http://127.0.0.1:4310 · API http://127.0.0.1:4311 · worker 함께 실행
 ```
 
-1. http://127.0.0.1:4310/start 를 열고 프로필 이름(아무 이름)으로 로컬 연결합니다.
-2. `fixtures/resumes/`의 **합성 이력서**(PDF·Word)를 올리면 전체 흐름을 볼 수 있습니다.
+- `package-lock.json`대로 설치합니다. 스캔본 PDF 글자 인식에 쓰는 `tesseract.js`와 한국어·영어 글자 자료도 함께 설치되며, 실행 중에 인터넷에서 따로 내려받지 않습니다.
+- 설치 끝에 `npm warn allow-scripts ... fsevents, tesseract.js` 경고가 나올 수 있습니다. 실행에는 영향이 없습니다.
 
-### Liner API로 실행하기(심사용 키)
-
-`.env`에 아래 값을 넣고 `npm run dev`를 다시 실행합니다. 한도 값은 예시입니다.
+### 3. 설정 파일 만들기
 
 ```bash
-LINER_API_KEY=<심사용 키>
-# 공고 검색
-LINER_MODE=live
-LINER_MAX_CALLS=20
-LINER_BUDGET_MICRO_USD=2000000
-# 점검·보완·맞춤 대화
-CHAT_MODE=liner
-LINER_CHAT_MAX_CALLS=20
-LINER_CHAT_BUDGET_MICRO_USD=5000000
-LINER_CHAT_ROUTING=quality   # 결과 품질 우선(라우터가 요청마다 모델 선택)
+cp .env.example .env
 ```
 
-키 없이 실행하면 모든 AI 기능이 **mock**(규칙 기반 합성 응답)으로 동작하고, 화면에 mock임을 표시합니다.
+기본값은 **mock 모드**입니다. API 키 없이 모든 화면과 흐름을 볼 수 있고, AI 응답은 규칙 기반 합성 응답이며 화면에 'mock'으로 표시됩니다.
+
+| 설정 | 기본값 | 뜻 |
+|---|---|---|
+| `CHAT_MODE` | `mock` | 이력서 읽기·HR 점검·문장 추천·JD 점검·맞춤 수정에 쓰는 AI. `liner`면 Liner Router API(유료) |
+| `LINER_MODE` | `mock` | 공고 검색. `live`면 Liner Web Search(유료)로 실제 공개 공고를 찾고, 아니면 합성 공고 목록 |
+| `DATABASE_PATH` | `.data/career-evidence.sqlite` | SQLite DB 파일. 처음 실행할 때 자동으로 만들어집니다 |
+| `OBJECT_DIR` | `.data/objects` | 올린 이력서·만든 PDF를 저장하는 폴더(`.env.example`에는 없고 기본값을 씁니다) |
+| `API_PORT` | `4311` | API 포트 |
+| `DEMO_ORIGIN` | `http://127.0.0.1:4310` | 웹 주소. **바꾸지 않습니다**(웹·확장·API가 이 주소로 맞춰져 있습니다) |
+
+설정과 설치 상태는 아래 명령으로 확인합니다. 출력된 `checks`가 모두 `"ok": true`이면 됩니다.
+
+```bash
+npm run doctor
+```
+
+### 4. 실행하기
+
+```bash
+npm run dev
+```
+
+API, 웹, worker가 함께 뜹니다. 아래처럼 나오면 준비된 것입니다.
+
+```text
+개발 화면: http://127.0.0.1:4310 | 검색 mock·mock 대화 worker 포함 | 지원은 자체 테스트 폼만
+Career Evidence API: http://127.0.0.1:4311 (...)
+Career Evidence worker: search_jobs(provider=mock) · tailor_resume(chat=mock, staged) · ...
+  VITE v8.3.8  ready in ... ms
+  ➜  Local:   http://127.0.0.1:4310/
+```
+
+브라우저에서 **http://127.0.0.1:4310/start** 를 엽니다(`localhost`가 아니라 `127.0.0.1`로 여는 것을 권장합니다). 끝낼 때는 터미널에서 `Ctrl+C`를 누릅니다.
+
+### 5. 따라 해 보기(mock, 몇 분)
+
+저장소의 **합성 이력서**(실제 인물 아님)로 전체 흐름을 볼 수 있습니다. 괄호 안은 화면의 버튼 이름입니다.
+
+1. **연결:** `/start`에서 아무 이름(예: `demo`)을 넣고 **연결**을 누릅니다. 이름마다 자료가 따로 저장됩니다.
+2. **이력서 등록:** `fixtures/resumes/frontend.synthetic.pdf`를 고르고 **이 파일 등록**을 누릅니다. `backend.synthetic.pdf`, `frontend.synthetic.docx`도 쓸 수 있고, 텍스트를 붙여넣어도 됩니다.
+3. **내용 확인:** 읽은 항목이 회사·프로젝트·기술 묶음으로 나옵니다. 사람이 판단할 것만 맨 위 **확인할 것 N개**에 모이고, 원문 그대로인 묶음은 접혀 있습니다(**펼치기**로 열어 고치거나 뺄 수 있습니다). **확인한 내용 저장**을 누르면 확정 경력이 됩니다.
+4. **(선택) 이력서 점검:** **HR 전문가에게 점검받기** → 질문에 답하거나 **문장 추천받기**로 문장을 고릅니다. 고른 문장은 확정 경력의 새 버전이 됩니다.
+5. **공고 찾기:** **확인한 내용으로 공고 찾기** → **이 기준으로 공고 찾기**. mock에서는 합성 공고 목록이 나옵니다.
+6. **공고 고르기:** 공고 카드의 **상세 비교 보기** → **이 공고에 맞춰 이력서 수정**.
+7. **JD 맞춤:** **HR 전문가에게 JD 점검받기** → 요구사항별 충족·근거 약함·미기재 점검표가 나옵니다. **이 공고에 맞춰 수정해줘**를 보내고 수정안의 **모두 적용**을 누릅니다. 오른쪽 미리보기에서 **수정 전후 비교**를 누르면 바뀐 줄과 이유를 볼 수 있고, **Word로 내려받기**도 됩니다.
+8. **최종본:** **최종 제출본 확인** → 확인 체크 → **이 버전으로 확정** → **PDF 만들기**. 파일의 SHA-256이 함께 표시됩니다.
+9. **지원 준비:** **지원 준비 시작** → 문항(이름·이메일·지원 동기·동의)을 채우고 **답변 저장**. 실제 제출은 Chrome 확장으로 합니다([7단계](#7-chrome-확장으로-지원서-제출하기선택)).
+
+### 6. Liner API로 실행하기(유료)
+
+`.env`를 열어 아래 값을 바꾸고 `npm run dev`를 다시 실행합니다. 키는 `.env`에만 넣고 코드·커밋에 적지 않습니다. 한도 값은 예시입니다.
+
+```bash
+LINER_API_KEY=<발급받은 키>
+
+# 이력서 읽기(검토 초안)·HR 점검·문장 추천·JD 점검·맞춤 수정
+CHAT_MODE=liner
+LINER_CHAT_MAX_CALLS=20
+LINER_CHAT_BUDGET_MICRO_USD=5000000   # $5
+LINER_CHAT_ROUTING=quality            # cost | balanced | quality
+
+# 실제 공고 검색(필요할 때만). mock으로 두면 합성 공고로 흐름을 봅니다.
+LINER_MODE=live
+LINER_MAX_CALLS=20
+LINER_BUDGET_MICRO_USD=2000000        # $2
+```
+
+- 한도는 DB 원장 기준의 **전체 합계**입니다. 넘으면 호출하지 않고, 그 단계는 규칙 결과로 돌아가거나 화면에 안내가 나옵니다.
+- 참고 비용(2026-11-24 실측, `CHAT_MODE=liner`·`LINER_MODE=mock`): 실제 이력서로 읽기 → HR 점검·문장 추천 → JD 점검 → 맞춤 수정까지 Router chat 8건, 약 $0.56(이력서 읽기 1건 약 $0.16).
+- `CHAT_MODE=liner`이면 이력서 내용·확정 경력·공고가 Liner로 전송됩니다(이메일·전화번호는 가려서 보냄). 화면에도 같은 안내가 나옵니다.
+- 이력서 읽기에서 AI 정리가 돌지 않았으면 확인 화면에 **AI 정리 없이 읽은 결과** 안내가 나옵니다(mock이거나 한도·호출 실패).
+
+### 7. Chrome 확장으로 지원서 제출하기(선택)
+
+제출 대상은 저장소에 들어 있는 **개발용 자체 테스트 폼**(`http://127.0.0.1:4310/demo/apply/<공고>`)뿐입니다. 실제 기업에는 접수되지 않습니다.
+
+1. Chrome에서 `chrome://extensions` → **개발자 모드** 켜기 → **압축해제된 확장 프로그램을 로드합니다** → 저장소의 `apps/extension` 폴더를 고릅니다.
+2. 웹에서 5단계의 9번(지원 준비, 답변 저장)까지 진행합니다.
+3. **지원 이력** 화면에서 **확장 연결 코드 만들기**를 누르고, 확장 아이콘으로 연 사이드 패널에 코드를 넣어 연결합니다.
+4. 패널의 **지원 폼 열기** → **폼 확인·입력**: 답변 입력과 PDF 첨부 후 다시 읽어 서버와 대조합니다(아직 제출하지 않음).
+5. 웹 지원 화면에서 내용을 확인하고 **승인하고 제출**을 누르면, 확장이 한 번 제출하고 사이트의 접수 기록(접수번호)으로 결과를 확인합니다.
+
+자세한 절차와 자동 검증 방법은 [`docs/EXTENSION_START.md`](docs/EXTENSION_START.md)에 있습니다.
+
+### 8. 데이터 위치와 초기화
+
+- 모든 자료는 저장소 안 `.data/` 폴더에만 저장됩니다(DB와 올린 파일). `.data/`는 Git에 올라가지 않습니다.
+- 처음 상태로 돌리려면 서버를 끄고 `.data/` 폴더를 지운 뒤 다시 `npm run dev`를 실행합니다.
+
+```bash
+rm -rf .data
+```
+
+### 9. 문제 해결
+
+| 증상(터미널 메시지) | 원인 | 해결 |
+|---|---|---|
+| `DEPENDENCIES_MISSING: run npm ci` | 의존성을 설치하지 않음 | `npm ci` |
+| `npm run doctor`에서 `Node 24.12+`가 `false` | Node 버전이 다름 | Node 24.12 이상 24.x로 바꾸기(`nvm use`) |
+| `Error: Port 4310 is already in use` | 이미 실행 중이거나 다른 프로그램이 포트 사용 | 먼저 띄운 `npm run dev`를 `Ctrl+C`로 끄거나 `lsof -i :4310`으로 찾아 종료 |
+| `STARTER_ORIGIN_FIXED` | `DEMO_ORIGIN`을 바꿈 | `.env`의 `DEMO_ORIGIN=http://127.0.0.1:4310`으로 되돌리기 |
+| `LINER_API_KEY_REQUIRED` | `CHAT_MODE=liner` 또는 `LINER_MODE=live`인데 키가 없음 | `.env`에 `LINER_API_KEY` 넣기, 또는 두 값을 `mock`으로 |
+| `LINER_CHAT_MAX_CALLS_INVALID`, `LINER_CHAT_BUDGET_INVALID` | `CHAT_MODE=liner`인데 대화 한도가 0이거나 비어 있음 | 1 이상의 정수로 넣기(6단계 예시) |
+| `LINER_MAX_CALLS_INVALID`, `LINER_BUDGET_INVALID` | `LINER_MODE=live`인데 검색 한도가 0이거나 비어 있음 | 1 이상의 정수로 넣기 |
+| `LINER_CHAT_ROUTING_INVALID` | 라우팅 값 오타 | `cost`, `balanced`, `quality` 중 하나 |
+| `LOCAL_DEV_AUTH_NOT_FOR_PRODUCTION` | `NODE_ENV=production`으로 실행 | 이 버전은 로컬 실행 전용입니다. `NODE_ENV`를 지우고 실행 |
+| 스캔본 PDF가 오래 걸림 | 그림에서 글자를 인식하는 중(최대 8쪽, 100초 한도) | 기다리거나, 텍스트를 붙여넣어 등록 |
+| 확인 화면에 항목이 하나도 안 보임 | 확인할 것이 없어 묶음이 모두 접혀 있음 | 묶음의 **펼치기**를 누릅니다 |
 
 ## 에이전트가 지키는 원칙
 
@@ -100,6 +217,7 @@ npm run check:contracts  # Python 3 + PyYAML·jsonschema 필요(contracts/README
 
 ## 한계
 
+- 공개 서비스 주소는 없습니다. 운영용 로그인이 없어 로컬(`127.0.0.1`) 실행 전용이며, 실행 화면은 데모 영상으로 대신합니다.
 - 개발용 mock 검색은 합성 공고를 씁니다. 실제 공고 검색은 `LINER_MODE=live`일 때입니다.
 - 브라우저 제출은 저장소에 포함된 **자체 테스트 폼**만 지원합니다. 외부 채용 사이트 adapter는 아직 없습니다.
 - Chrome 확장은 개발자 모드로 직접 설치합니다(`docs/EXTENSION_START.md`).
