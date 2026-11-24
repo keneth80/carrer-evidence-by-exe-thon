@@ -1,6 +1,7 @@
 import { storeZip } from './zip.ts';
 import { employerPeriods, projectSpan, resumeLayout } from '../../tailor/src/layout.ts';
 import { sectionLabel } from '../../tailor/src/types.ts';
+import { withoutHiddenChars } from '../../tailor/src/hidden-chars.ts';
 import type { FactLike, ResumeBlock } from '../../tailor/src/types.ts';
 
 // 기본 이력서 Word(.docx) 내려받기(사용자 요청 2026-11-20, DECISIONS S1-23).
@@ -83,8 +84,8 @@ export function tailoredDocxLines(blocks: ResumeBlock[], facts: FactLike[]): Doc
   return lines;
 }
 
-// XML 1.0에 쓸 수 없는 제어 문자는 뺀다(탭·줄바꿈은 유지).
-const clean = (text: string) => text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f￾￿]/g, '');
+// XML 1.0에 쓸 수 없는 제어 문자와 보이지 않는 문자(S4-16)는 뺀다(탭·줄바꿈은 유지).
+const clean = (text: string) => withoutHiddenChars(text).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f￾￿]/g, '');
 const escape = (text: string) => clean(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const STYLE_ID: Record<DocxStyle, string> = { Title: 'Title', Contact: 'Contact', Heading1: 'Heading1', Heading2: 'Heading2', Role: 'Role', Bullet: 'Bullet', Body: 'Normal' };
 
