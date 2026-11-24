@@ -41,7 +41,7 @@
 | 추출 작업 | `apps/api/src/resume/extraction.ts` | `extract_resume` claim·lease·결과 저장·복구 |
 | 저장소·조회 | `apps/api/src/resume/storage.ts`, `apps/api/src/resume/repository.ts` | 파일 저장(ID 경로만), workspace 조건 SQL |
 | 추출 규칙 | `packages/resume/src/pdf.ts`, `pdf-worker.ts`, `docx.ts`, `docx-worker.ts`, `candidates.ts`, `confirm.ts`, `source.ts`, `types.ts` | pdfjs 텍스트·mammoth Word 텍스트(worker thread·시간/메모리 한도, docx는 업로드 시 ZIP 구조·크기 검사), 규칙 후보, 근거·문장 범위 검증·hash, code point 위치 |
-| 화면 | `apps/web/src/resume/` | `SessionGate`, `StartPage`(U01), `ReviewPage`·`FactEditor`·`FactBulkBar`·`SourcePanel`·`WarningsPanel`(U02), `bulk.ts`(일괄 포함/제외·원문 줄 묶음 추가, 순수 함수), `api.ts` |
+| 화면 | `apps/web/src/resume/` | `SessionGate`, `StartPage`(U01), `ReviewPage`·`FactEditor`·`FactBulkBar`·`SourcePanel`·`WarningsPanel`(U02), `bulk.ts`(일괄 포함/제외·원문 줄 묶음 추가, 순수 함수), `attention.ts`(확인할 것·묶음 접기·적용 가능한 문구 제안, 순수 함수, S1-33), `api.ts` |
 
 ## S02 경력 기반 mock 검색 코드 (2026-11-17 구현)
 

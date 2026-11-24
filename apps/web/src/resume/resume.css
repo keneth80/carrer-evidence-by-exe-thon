@@ -72,6 +72,9 @@ mark{background:#ffe8a3;color:inherit;border-radius:3px;padding:0 1px}
 .fact-group-section{background:#f3f8f8}
 .fact-group-employer{background:#fff}
 .fact-group-project{background:#f7fafa;border-left:3px solid #79a7a6}
+.fact-group.collapsed{gap:0}
+.group-tools{display:flex;align-items:center;gap:8px}
+.fact-list li.attention{border-left:3px solid #c77a1f;padding-left:8px}
 .fact-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .fact-head select{padding:5px 30px 5px 8px;font-size:12px}
 .check{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:650}
@@ -84,7 +87,6 @@ mark{background:#ffe8a3;color:inherit;border-radius:3px;padding:0 1px}
 .fact-list textarea{width:100%;border:1px solid #d5e1e2;border-radius:6px;padding:8px 10px;resize:vertical;font-size:14px}
 .fact-list textarea[readonly]{background:#f8fafa;border-color:transparent}
 .fact-evidence{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px}
-.fact-draft{margin:3px 0;line-height:1.55;overflow-wrap:anywhere}
 .tag{font-size:11px;font-weight:700;border-radius:4px;padding:2px 7px}
 .tag.extracted{background:#eef3f4;color:#4f666e}
 .tag.edited{background:#fff3dc;color:#906722}
