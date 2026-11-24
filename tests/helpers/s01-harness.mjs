@@ -16,14 +16,14 @@ export function tempFolder(prefix) {
   return { folder, cleanup: () => rmSync(folder, { recursive: true, force: true }) };
 }
 
-export async function startApi(folder, { autoExtract = true } = {}) {
+export async function startApi(folder, { autoExtract = true, linerMessages } = {}) {
   const config = { ...readConfig({}), port: 0, databasePath: join(folder, 'app.sqlite'), objectDir: join(folder, 'objects') };
   const db = openDatabase(config.databasePath);
   const store = createObjectStore(config.objectDir);
   const extraction = { db, store, owner: `test-${randomUUID()}`, leaseMs: config.limits.extractionLeaseMs, now: Date.now };
   const pending = [];
   const schedule = taskId => { if (autoExtract) pending.push(runExtractionTask(extraction, taskId)); };
-  const server = createApiServer(config, db, { store, schedule });
+  const server = createApiServer(config, db, { store, schedule, linerMessages });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   config.port = server.address().port;
   const base = `http://127.0.0.1:${config.port}`;

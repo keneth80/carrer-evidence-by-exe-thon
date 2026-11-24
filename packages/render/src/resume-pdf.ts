@@ -4,6 +4,7 @@ import type { PDFFont, PDFPage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { layoutTexts, resumeLayout } from '../../tailor/src/layout.ts';
 import { sectionLabel } from '../../tailor/src/types.ts';
+import { withoutHiddenChars } from '../../tailor/src/hidden-chars.ts';
 import type { FactLike, ResumeBlock } from '../../tailor/src/types.ts';
 
 // 확정 이력서 블록을 실제 A4 PDF로 만든다. 같은 블록·같은 확정 시각이면 같은 bytes가 나오도록 날짜를 고정한다.
@@ -25,8 +26,8 @@ export class RenderGlyphError extends Error {
   }
 }
 
-// 그릴 문자열 정규화: 분해형 한글(NFD)은 조합형으로, 탭·제어문자는 공백으로 바꾼다. 의미는 바뀌지 않는다.
-export const renderableText = (text: string) => text.normalize('NFC').replace(/[\t\u000b\u000c\u00a0]/g, ' ').replace(/[\u0000-\u0008\u000e-\u001f]/g, '');
+// 그릴 문자열 정규화: 분해형 한글(NFD)은 조합형으로, 탭·제어문자는 공백으로 바꾸고 보이지 않는 문자는 지운다(S4-16). 의미는 바뀌지 않는다.
+export const renderableText = (text: string) => withoutHiddenChars(text.normalize('NFC')).replace(/[\t\u000b\u000c\u00a0]/g, ' ').replace(/[\u0000-\u0008\u000e-\u001f]/g, '');
 export type RenderOutput = { bytes: Uint8Array; pageCount: number; renderVersion: string };
 
 const FONT_DIR = new URL('../fonts/', import.meta.url);

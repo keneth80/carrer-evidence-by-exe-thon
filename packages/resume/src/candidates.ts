@@ -1,5 +1,6 @@
-import { splitLines } from './source.ts';
+import { codePointSlice, splitLines } from './source.ts';
 import type { Line, SourcePage, SourceText } from './source.ts';
+import { FACT_LIMITS } from './confirm.ts';
 import type { ExtractionWarning, FactCategory, ResumeFact } from './types.ts';
 
 // 규칙 기반 후보 추출. 모델을 쓰지 않고 원문 줄을 그대로 후보로 만든다.
@@ -35,7 +36,8 @@ const SECTION_NUMBER = /^(0\d[.)]?\s+|\d{2}\s{2,}|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨ�
 const LIST_NUMBER = /^\d{1,2}[.)]\s+/;
 const BRACKETED = /^[[【〈<]\s*([^\]】〉>]{1,30}?)\s*[\]】〉>]$/;
 const SENTENCE_END = /(다|요)\.?$|[.!?]$/;
-const LEADING_BULLET = /^[•\-*■□▪▶▷►●○◆◇※]\s*/;
+const CLAUSE_CONTINUES = /(?:[가-힣][을를]|\s(?:및|또는|그리고))$/;
+export const LEADING_BULLET = /^[•\-*■□▪▶▷►●○◆◇※]\s*/;
 // 표로 만든 경력란의 머리 줄(열 이름). 내용이 아니라 경력 항목으로 만들지 않는다.
 const TABLE_LABEL = /^(기간|근무\s*기간|재직\s*기간|회사명?|소속(\s*및\s*(역할|직위|직책))?|직위|직책|역할|(주요|담당)\s*업무|업무\s*내용|비고)$/;
 const POSITION = /(사원|주임|대리|과장|차장|부장|팀장|실장|수석|책임|선임|연구원|리드|매니저|인턴)$/;
@@ -90,6 +92,29 @@ function segments(page: SourcePage): Segment[] {
     }
   }
   return result;
+}
+
+// 소개 제목이 없는 이력서에서는 자동 줄바꿈 때문에 첫 구절만 머리글로 빠질 수 있다.
+function wrappedHeaderSummary(page: SourcePage, segments: Segment[], index: number): { segment: Segment; last: number } | null {
+  const first = segments[index];
+  const listItem = (quote: string) => LEADING_BULLET.test(quote) || LIST_NUMBER.test(quote);
+  if (first.text.length <= 40 || !CLAUSE_CONTINUES.test(first.text) || DATE_RANGE.test(first.quote) || listItem(first.quote)) return null;
+
+  let text = first.text;
+  for (let at = index + 1; at < segments.length; at++) {
+    const next = segments[at];
+    if (headingOf(next.text) || listItem(next.quote) || DATE_RANGE.test(next.quote)) return null;
+    const gap = codePointSlice(page.text, segments[at - 1].end, next.start);
+    if (!/^[^\S\n]*\n[^\S\n]*$/.test(gap) || /\n\s*\n/.test(next.quote)) return null;
+
+    text += ` ${next.text}`;
+    if (text.length > FACT_LIMITS.maxStatement || EMAIL.test(text) || PHONE.test(text) || PREFERENCE.test(text) || NEGATION.test(text)) return null;
+    if (SENTENCE_END.test(next.text)) {
+      return { segment: { text, start: first.start, end: next.end, quote: codePointSlice(page.text, first.start, next.end) }, last: at };
+    }
+    if (!CLAUSE_CONTINUES.test(next.text)) return null;
+  }
+  return null;
 }
 
 type Collector = { facts: ResumeFact[]; warnings: ExtractionWarning[] };
@@ -249,9 +274,17 @@ export function extractCandidates(source: SourceText, documentId: string): Colle
   let section: Section = 'header';
   let after: After = null;
   for (const page of source.pages) {
-    for (const segment of segments(page)) {
+    const parts = segments(page);
+    for (let index = 0; index < parts.length; index++) {
+      const segment = parts[index];
       const heading = headingOf(segment.text);
       if (heading) { section = heading; after = null; continue; }
+      const summary = section === 'header' ? wrappedHeaderSummary(page, parts, index) : null;
+      if (summary) {
+        after = classify(out, documentId, page.page, section, summary.segment, after);
+        index = summary.last;
+        continue;
+      }
       after = classify(out, documentId, page.page, section, segment, after);
     }
   }

@@ -2,6 +2,13 @@
 
 export const FACT_CATEGORIES = ['role', 'employer', 'period', 'skill', 'responsibility', 'achievement', 'education', 'certification', 'location', 'other'] as const;
 export type FactCategory = typeof FACT_CATEGORIES[number];
+export const REVIEW_SECTIONS = ['intro', 'career', 'awards', 'education', 'skills', 'certifications', 'sensitive', 'other'] as const;
+export type ReviewSection = typeof REVIEW_SECTIONS[number];
+export type FactReview = {
+  section: ReviewSection; wording: string | null; primary?: true;
+  group?: { id: string; title: string };
+  project?: { id: string; title: string };
+};
 
 export type DocumentEvidence = { kind: 'document'; document_id: string; page: number | null; start: number; end: number; quote: string };
 export type UserStatementEvidence = { kind: 'user_statement'; message_id: string; confirmed_at: string; quote: string };

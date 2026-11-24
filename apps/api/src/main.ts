@@ -5,6 +5,7 @@ import { createLinerLedger } from '../../worker/src/liner-ledger.ts';
 import { createLinerStructureProvider } from '../../../packages/liner/src/structure.ts';
 import { createApiServer } from './server.ts';
 import { createObjectStore } from './resume/storage.ts';
+import { createLinerMessageCache } from './resume/liner-messages.ts';
 import { recoverExtractionTasks, runExtractionTask } from './resume/extraction.ts';
 import type { ExtractionDeps } from './resume/extraction.ts';
 
@@ -12,17 +13,19 @@ const config = readConfig();
 const db = openDatabase(config.databasePath);
 const store = createObjectStore(config.objectDir);
 const owner = `api-${randomUUID()}`;
+const linerMessages = createLinerMessageCache();
 // 분류 보정(S1-30)은 실호출 대화(CHAT_MODE=liner)일 때만, worker와 같은 대화 원장 한도(purpose=chat) 안에서 나간다. mock이면 규칙 분류만 쓴다.
 const structure = config.chat ? createLinerStructureProvider({
   apiKey: readLinerApiKey(), fetch, routing: config.chat.routing,
   ledger: createLinerLedger({ db, owner, now: Date.now, maxCalls: config.chat.maxCalls, budgetMicroUsd: config.chat.budgetMicroUsd }),
   onUsage: usage => console.log(`LINER_CHAT_USAGE model=${usage.model} prompt_tokens=${usage.prompt_tokens} completion_tokens=${usage.completion_tokens} micro_usd=${usage.micro_usd}`),
+  onMessages: (call, messages) => linerMessages.set(call.taskId, messages),
 }) : null;
 const extraction: ExtractionDeps = { db, store, owner, leaseMs: config.limits.extractionLeaseMs, now: Date.now, structure };
 const logFailure = (error: unknown) => console.error('EXTRACTION_TASK_FAILED', error instanceof Error ? error.message : 'unknown');
 const schedule = (taskId: string) => { setImmediate(() => { runExtractionTask(extraction, taskId).catch(logFailure); }); };
 
-const server = createApiServer(config, db, { store, schedule });
+const server = createApiServer(config, db, { store, schedule, linerMessages });
 server.on('error', error => {
   console.error('API_START_FAILED', error.message);
   db.close();

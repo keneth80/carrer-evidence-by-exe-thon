@@ -36,7 +36,9 @@ export const MODEL_PRICES: Record<string, { input: number; output: number }> = {
 const WORST_PRICE = { input: 10, output: 50 };
 
 export type LinerChatUsage = { model: string; prompt_tokens: number; completion_tokens: number; micro_usd: number };
-export type LinerChatDeps = { apiKey: string; fetch: typeof fetch; ledger: LinerLedger; routing?: LinerChatRouting; timeoutMs?: number; onUsage?: (usage: LinerChatUsage) => void };
+export type LinerMessage = { role: string; content: string };
+export type LinerMessages = { request: readonly LinerMessage[]; response: LinerMessage | null };
+export type LinerChatDeps = { apiKey: string; fetch: typeof fetch; ledger: LinerLedger; routing?: LinerChatRouting; timeoutMs?: number; onUsage?: (usage: LinerChatUsage) => void; onMessages?: (call: ChatCallContext, messages: LinerMessages) => void };
 
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
 
@@ -143,17 +145,17 @@ const UNKNOWN = 'Liner가 요청을 처리했는지 확인할 수 없습니다. 
 type Completion = { model?: unknown; choices?: { finish_reason?: unknown; message?: { content?: unknown } }[]; usage?: { prompt_tokens?: unknown; completion_tokens?: unknown } };
 
 // 원장 예약 → 전송 → 정산 → JSON 응답 해석을 한 번에 한다. 대화 수정과 AI 1차 점검(S1-14)이 같이 쓴다. 보낸 뒤 재시도하지 않는다.
-export async function callLinerJson(deps: LinerChatDeps, call: ChatCallContext | undefined, request: object, signal?: AbortSignal): Promise<unknown> {
+export async function callLinerJson(deps: LinerChatDeps, call: ChatCallContext | undefined, request: { messages: readonly LinerMessage[]; max_completion_tokens?: number }, signal?: AbortSignal): Promise<unknown> {
   if (!call) throw new ChatProviderError('LINER_CALL_CONTEXT_REQUIRED', '유료 대화 호출은 작업 원장 없이 보내지 않습니다.', 'not_dispatched');
   const body = JSON.stringify(request);
-  const maxTokens = (request as { max_completion_tokens?: unknown }).max_completion_tokens;
-  const reserved = deps.ledger.reserve(call, sha256(body), reserveMicroUsd(body, typeof maxTokens === 'number' ? maxTokens : MAX_COMPLETION_TOKENS), 'chat');
+  const reserved = deps.ledger.reserve(call, sha256(body), reserveMicroUsd(body, request.max_completion_tokens ?? MAX_COMPLETION_TOKENS), 'chat');
   if (!reserved.ok) throw new ChatProviderError(reserved.code, REFUSED[reserved.code] ?? REFUSED.LINER_LEASE_NOT_HELD, 'not_dispatched');
   if (signal?.aborted || !deps.ledger.dispatch(reserved.callId)) {
     deps.ledger.settle(reserved.callId, 'failed', 0);
     throw new ChatProviderError('LINER_LEASE_NOT_HELD', REFUSED.LINER_LEASE_NOT_HELD, 'not_dispatched');
   }
   const timeout = AbortSignal.timeout(deps.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  deps.onMessages?.(call, { request: request.messages, response: null });
   let response: Response;
   try {
     response = await deps.fetch(LINER_CHAT_URL, {
@@ -179,6 +181,10 @@ export async function callLinerJson(deps: LinerChatDeps, call: ChatCallContext |
     await response.body?.cancel().catch(() => undefined);
   }
   const choice = completion?.choices?.[0];
+  const content = choice?.message?.content;
+  if (typeof content === 'string') {
+    deps.onMessages?.(call, { request: request.messages, response: { role: 'assistant', content } });
+  }
   const usage = completion?.usage;
   if (!completion || !choice || typeof usage?.prompt_tokens !== 'number' || typeof usage.completion_tokens !== 'number') {
     // 5xx·빈 응답·사용량 없음: 처리·과금 여부를 알 수 없다.
@@ -190,10 +196,10 @@ export async function callLinerJson(deps: LinerChatDeps, call: ChatCallContext |
   deps.ledger.settle(reserved.callId, 'succeeded', microUsd);
   deps.onUsage?.({ model, prompt_tokens: usage.prompt_tokens, completion_tokens: usage.completion_tokens, micro_usd: microUsd });
   if (choice.finish_reason === 'length') throw new ChatProviderError('LINER_CHAT_TRUNCATED', '응답이 길이 한도에서 잘렸습니다. 요청을 더 좁혀 다시 보내 주세요.', 'completed');
-  if (typeof choice.message?.content !== 'string') throw new ChatProviderError('CHAT_OUTPUT_INVALID', '대화 응답 형식이 올바르지 않습니다.', 'completed');
+  if (typeof content !== 'string') throw new ChatProviderError('CHAT_OUTPUT_INVALID', '대화 응답 형식이 올바르지 않습니다.', 'completed');
   try {
     // 설명 문장에 섞인 내부 ID는 지운다. 근거 필드는 그대로 둔다(scrub.ts).
-    return scrubProse(JSON.parse(choice.message.content));
+    return scrubProse(JSON.parse(content));
   } catch {
     throw new ChatProviderError('CHAT_OUTPUT_INVALID', '대화 응답 형식이 올바르지 않습니다.', 'completed');
   }

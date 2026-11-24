@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SupplementProgress } from './api.ts';
-import { progressView, SUPPLEMENT_PROGRESS } from './progress.ts';
+import { linerWaiting, progressView, SUPPLEMENT_PROGRESS } from './progress.ts';
+import { HrReviewing } from './HrReviewing.tsx';
 import type { ProgressProfile } from './progress.ts';
 
 // 에이전트가 일하는 동안 눈에 띄게 보여 주는 진행 패널(DECISIONS S1-17, 사용자 요청).
@@ -35,6 +36,8 @@ export function AgentProgress({ progress, taskId, mode, firstTurn, profile = SUP
       <span className="agent-elapsed">{seconds}초</span>
     </div>
     <p className="agent-progress-now" aria-live="polite">{view.message}… <span className="agent-step-count">({view.position}/{view.total})</span></p>
+    {/* Liner 응답을 기다리는 단계(S1-39). 진행 기록이 이 작업 것일 때만 단계를 믿는다. */}
+    {own && linerWaiting(view.currentKey) && <HrReviewing />}
     <div className="agent-bar" role="progressbar" aria-label="HR 전문가 진행률" aria-valuemin={0} aria-valuemax={100} aria-valuenow={view.percent} aria-valuetext={`${view.total}단계 중 ${view.position}단계, ${view.percent}%`}>
       <div className="agent-bar-fill" style={{ width: `${Math.max(view.percent, 6)}%` }} />
     </div>

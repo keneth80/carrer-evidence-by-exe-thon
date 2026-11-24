@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Task } from './api.ts';
 import { extractionStep } from './extraction-step.ts';
+import { HrReviewing } from './HrReviewing.tsx';
 
 // 이력서를 읽는 동안의 단계 표시(사용자 요청 2026-11-21, DECISIONS S1-31).
 // 단계는 추정하지 않고 작업의 실제 상태에서 읽는다: 대기·실행(state)과 AI 호출의 전송 상태(provider_transmission).
@@ -29,6 +30,8 @@ export function ExtractionProgress({ task, since }: { task: Task | null; since: 
       <span className="agent-elapsed">{seconds}초</span>
     </div>
     <p className="agent-progress-now" aria-live="polite">{STEPS[step].doing}… <span className="agent-step-count">({step + 1}/{STEPS.length})</span></p>
+    {/* 2단계(AI 정리)는 Liner 응답을 기다리는 단계라 가장 오래 걸린다(S1-39). */}
+    {step === 1 && <HrReviewing />}
     <div className="agent-bar" role="progressbar" aria-label="이력서 읽기 진행률" aria-valuemin={0} aria-valuemax={100} aria-valuenow={PERCENT[step]} aria-valuetext={`${STEPS.length}단계 중 ${step + 1}단계, ${STEPS[step].label}`}>
       <div className="agent-bar-fill" style={{ width: `${PERCENT[step]}%` }} />
     </div>

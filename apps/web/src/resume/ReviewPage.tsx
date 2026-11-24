@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ResumeFact } from '../../../../packages/resume/src/types.ts';
+import type { FactReview, ResumeFact } from '../../../../packages/resume/src/types.ts';
 import { api, ApiError, describeError } from './api.ts';
 import type { DocumentSummary, ExtractionDraft, FactRevision, SourceText } from './api.ts';
 import { FactEditor, isWithinEvidence } from './FactEditor.tsx';
@@ -9,8 +9,9 @@ import type { Span } from './SourcePanel.tsx';
 import { WarningsPanel } from './WarningsPanel.tsx';
 import { FactBulkBar } from './FactBulkBar.tsx';
 import { ExtractionProgress } from './ExtractionProgress.tsx';
-import { sectionTitles } from '../../../../packages/resume/src/sections.ts';
 import { addLines } from './bulk.ts';
+import { attentionLabel, attentionSummary } from './attention.ts';
+import type { AttentionSummary } from './attention.ts';
 import { SupplementSection } from './SupplementSection.tsx';
 import { downloadResumeDocx } from './download-docx.ts';
 import type { SourceLine } from './bulk.ts';
@@ -19,7 +20,7 @@ import { recentSearch } from '../search/recent.ts';
 
 // U02 추출 내용 확인. 확인 전 초안은 확정 경력이 아니며, 저장하면 새 경력 revision을 만든다.
 
-type Loaded = { summary: DocumentSummary; draft: ExtractionDraft | null; source: SourceText | null; revision: FactRevision | null };
+type Loaded = { summary: DocumentSummary; draft: ExtractionDraft | null; source: SourceText | null; revision: FactRevision | null; review?: Record<string, FactReview> };
 
 const failureHelp: Record<string, string> = {
   EMPTY_TEXT: '텍스트를 읽지 못했어요. 내용을 텍스트로 붙여넣거나 다른 파일을 올려 주세요.',
@@ -31,6 +32,18 @@ const failureHelp: Record<string, string> = {
   PDF_TOO_MANY_PAGES: '30쪽을 넘는 PDF는 읽지 않습니다. 필요한 부분을 붙여넣어 주세요.',
 };
 
+// 확인할 것만 맨 위에 모아 알린다(S1-37). 원문 그대로인 묶음은 접혀 있으니 제목만 훑고 저장해도 된다.
+function AttentionNotice({ summary }: { summary: AttentionSummary }) {
+  const parts = [
+    ...(['not_in_source', 'sensitive_excluded', 'user_added'] as const).filter(reason => summary[reason] > 0).map(reason => `${attentionLabel[reason]} ${summary[reason]}`),
+    ...(summary.source_lines > 0 ? [`경력에 넣지 않은 원문 줄 ${summary.source_lines}(맨 아래 ‘추가 확인 필요’)`] : []),
+  ];
+  return <div className="notice attention-summary" role="status">
+    <strong>{summary.total > 0 ? `확인할 것 ${summary.total}개` : '확인할 것 없음'}</strong>
+    <span>{parts.length > 0 ? `${parts.join(' · ')}. ` : ''}나머지는 원문 문장 그대로라 묶음을 접어 두었습니다. 묶음 제목을 훑어보고, 고칠 곳만 펼쳐서 수정하세요.</span>
+  </div>;
+}
+
 async function load(documentId: string): Promise<Loaded | 'not_found'> {
   const summary = (await api.documents()).items.find(item => item.document.id === documentId);
   if (!summary) return 'not_found';
@@ -39,7 +52,8 @@ async function load(documentId: string): Promise<Loaded | 'not_found'> {
   const draft = await api.extraction(documentId);
   const source = await api.sourceText(documentId).catch((error: unknown) => { if (error instanceof ApiError && error.status === 409) return null; throw error; });
   const revision = summary.current_fact_revision_id ? await api.factRevision(summary.current_fact_revision_id) : null;
-  return { summary, draft, source, revision };
+  const review = summary.latest_task ? await api.extractionReview(summary.latest_task.id) : undefined;
+  return { summary, draft, source, revision, review };
 }
 
 function editable(facts: ResumeFact[], origin: EditableFact['origin']): EditableFact[] {
@@ -66,7 +80,8 @@ export function ReviewPage({ documentId }: { documentId: string }) {
       setError(null); setFailures(0);
       setData(value);
       if (value !== 'not_found' && value.draft) {
-        setItems(value.revision ? editable(value.revision.facts, 'confirmed') : editable(value.draft.facts, 'extracted'));
+        setItems(value.revision ? editable(value.revision.facts, 'confirmed') : editable(value.draft.facts, 'extracted').map(item =>
+          value.review?.[item.fact.id]?.section === 'sensitive' ? { ...item, included: false } : item));
         setEditing(!value.revision);
       }
     }).catch(failure => {
@@ -118,6 +133,9 @@ export function ReviewPage({ documentId }: { documentId: string }) {
   const scanNote = draft?.warnings.find(warning => warning.startsWith('OCR_TEXT@- '))?.slice('OCR_TEXT@- '.length) ?? null;
   const includedCount = items.filter(item => item.included).length;
   const invalidCount = items.filter(item => item.included && !isWithinEvidence(item)).length;
+  const linerTransmission = summary.latest_task?.provider_transmission;
+  const showSourceGrouping = !revision && items.length > 0 && (linerTransmission === 'completed' || linerTransmission === 'unknown')
+    && !Object.values(data.review ?? {}).some(annotation => annotation.primary);
   return <>
     <a className="back" href="/start" onClick={event => { event.preventDefault(); navigate('/start'); }}>← 이력서 등록으로</a>
     <section className="hero compact">
@@ -153,8 +171,10 @@ export function ReviewPage({ documentId }: { documentId: string }) {
       </section>
       <section className="panel" aria-labelledby="facts-title">
         <h2 id="facts-title">{revision && !editing ? '확정 경력' : '경력 항목 확인'} <span className="count">{includedCount}</span></h2>
+        {showSourceGrouping && <p className="notice"><span>Liner 검토 초안을 적용하지 못해 원문 기준으로 구역을 분류했습니다.</span></p>}
+        {!readOnly && <AttentionNotice summary={attentionSummary(items, data.review, draft.warnings)} />}
         {!readOnly && <FactBulkBar items={items} onChange={setItems} />}
-        <FactEditor inputKind={document.input_kind} items={items} readOnly={readOnly} onShow={setHighlight} sections={sectionTitles(items.map(item => item.fact), source, draft.warnings)} onChange={(index, next) => setItems(current => current.map((item, i) => i === index ? next : item))}
+        <FactEditor inputKind={document.input_kind} source={source} items={items} review={data.review} readOnly={readOnly} onShow={setHighlight} onChange={(index, next) => setItems(current => current.map((item, i) => i === index ? next : item))}
           onToggleGroup={(indexes, included) => setItems(current => current.map((item, i) => indexes.includes(i) && item.included !== included ? { ...item, included } : item))} />
         <WarningsPanel warnings={draft.warnings} source={source} readOnly={readOnly} onShow={setHighlight} onAdd={addFromSource} onAddMany={addLinesFromSource} />
       </section>

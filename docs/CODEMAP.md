@@ -41,7 +41,7 @@
 | 추출 작업 | `apps/api/src/resume/extraction.ts` | `extract_resume` claim·lease·결과 저장·복구 |
 | 저장소·조회 | `apps/api/src/resume/storage.ts`, `apps/api/src/resume/repository.ts` | 파일 저장(ID 경로만), workspace 조건 SQL |
 | 추출 규칙 | `packages/resume/src/pdf.ts`, `pdf-worker.ts`, `docx.ts`, `docx-worker.ts`, `candidates.ts`, `confirm.ts`, `source.ts`, `types.ts` | pdfjs 텍스트·mammoth Word 텍스트(worker thread·시간/메모리 한도, docx는 업로드 시 ZIP 구조·크기 검사), 규칙 후보, 근거·문장 범위 검증·hash, code point 위치 |
-| 화면 | `apps/web/src/resume/` | `SessionGate`, `StartPage`(U01), `ReviewPage`·`FactEditor`·`FactBulkBar`·`SourcePanel`·`WarningsPanel`(U02), `bulk.ts`(일괄 포함/제외·원문 줄 묶음 추가, 순수 함수), `api.ts` |
+| 화면 | `apps/web/src/resume/` | `SessionGate`, `StartPage`(U01), `ReviewPage`·`FactEditor`·`FactBulkBar`·`SourcePanel`·`WarningsPanel`(U02), `bulk.ts`(일괄 포함/제외·원문 줄 묶음 추가, 순수 함수), `attention.ts`(확인할 것·묶음 접기·적용 가능한 문구 제안, 순수 함수, S1-37), `api.ts` |
 
 ## S02 경력 기반 mock 검색 코드 (2026-11-17 구현)
 
@@ -73,7 +73,7 @@
 | API handler | `apps/api/src/tailor/sessions.ts`, `proposals.ts`, `revisions.ts`, `repository.ts` | 세션·메시지·재시도·되돌리기, 제안 수용(부분)·거절, revision 조회·확정, PDF 요청·메타·파일 제공 |
 | 대화 진술 근거 확정 | `packages/resume/src/confirm.ts`, `apps/api/src/resume/review.ts` | `user_statement` 근거(같은 workspace의 user 메시지, 서버 확인 시각) |
 | worker | `apps/worker/src/lease.ts`, `tailor-task.ts`, `render-task.ts` | 공용 lease·heartbeat·CAS, 대화 응답·제안 저장(선별·stale), PDF 생성·hash 저장 |
-| 화면 | `apps/web/src/tailor/` | `TailorPage`(U04 3분할·탭), `ChatPanel`(JD 점검 버튼·진행 패널·턴 요약), `JdCheckView`(요구사항 점검표·뺀 수정안, S1-18), `ProposalCard`, `ResumePreview`, `FinalPage`(U05 확정·PDF), `data.ts` |
+| 화면 | `apps/web/src/tailor/` | `TailorPage`(U04 3분할·탭, 미리보기/수정 전후 비교), `RevisionCompare`(S4-17), `ChatPanel`(JD 점검 버튼·진행 패널·턴 요약), `JdCheckView`(요구사항 점검표·뺀 수정안, S1-18), `ProposalCard`, `ResumePreview`, `FinalPage`(U05 확정·PDF), `data.ts` |
 | 검사 | `tests/tailor-unit.test.mjs`, `tests/tailoring-flow.test.mjs`, `tests/helpers/s04-harness.mjs`, `tests/helpers/pdf-glyphs.mjs` | 단위·HTTP+worker 통합, PDF 글리프 윤곽선 검사 |
 
 ## S05 브라우저 지원·제출 이력 코드 (2026-11-18 구현)
@@ -83,7 +83,7 @@
 | migration | `contracts/v0.7/migrations/008_browser_apply.sql`, `packages/db/src/index.ts` | v0.7.1: 기기 연결·폼 관측·실행 토큰·외부 지원 기록·자체 폼 사이트 접수 저장소 |
 | migration (DOCX) | `contracts/v0.7/migrations/009_docx_intake.sql` | v0.7.2: `ce7_documents` 형식 CHECK에 docx 추가(표 재생성·행/FK/트리거 유지) |
 | DOCX 합성 fixture | `scripts/make-docx-fixture.mjs`, `fixtures/resumes/frontend.synthetic.docx`, `docx.synthetic.json` | 결정적 bytes 재생성, 합성 hash 목록 |
-| 순수 로직 | `packages/apply/src/self-form.ts`, `payload.ts`, `verify.ts`, `types.ts` | 자체 폼 adapter 명세(문항·주소), 답변 검증·payload hash, 폼 snapshot·readback 대조 |
+| 순수 로직 | `packages/apply/src/self-form.ts`, `payload.ts`, `verify.ts`, `types.ts`, `identity.ts` | 자체 폼 adapter 명세(문항·주소), 답변 검증·payload hash, 폼 snapshot·readback 대조, 이전 지원서의 이름·이메일 채우기(S5-14) |
 | 지원 API | `apps/api/src/apply/applications.ts`, `submission.ts`, `external.ts`, `devices.ts`, `repository.ts` | 지원 건·revision·이력·채용 단계, 수동 권한·시도·접수 확인 요청·근거, 외부 지원 기록, 기기 연결 코드·해제 |
 | 실행기 프로토콜 | `apps/api/src/apply/executor.ts`, `docs/EXECUTOR_PROTOCOL.md` | 기기 토큰 인증, 준비·파일·관측·claim·dispatch·결과 보고 |
 | 접수 대조 | `apps/api/src/apply/reconcile.ts` | 자체 폼 사이트 저장소 대조·봉인, 근거 기록(자체 폼 전용 강한 보장) |
@@ -137,6 +137,9 @@
 
 | 대화 provider(Liner live, S4-14) | `packages/liner/src/chat.ts`, `apps/worker/src/main.ts`, `apps/api/src/config.ts`(CHAT_MODE), `scripts/liner-chat-check.mjs`, `apps/web/src/tailor/chatMode.ts` | Router API 요청·예약/정산·연락처 가림·가격표, 실호출 확인 스크립트, 화면 전송 안내 |
 | 안티슬롭(S4-13) | `packages/tailor/src/slop.ts`, `packages/tailor/src/screen-changes.ts`(`screenChanges`·`guardReason`, worker `tailor-task.ts`가 재수출), `packages/tailor/src/user-sentence.ts` | AI 제안 문장 상투·과장 표현 제외, 사실 확인 후보 원문 문장 보정 |
+| 보이지 않는 문자 지우기(S4-16) | `packages/tailor/src/hidden-chars.ts`(`withoutHiddenChars`), `packages/liner/src/scrub.ts`(`scrubProse`, Liner 응답), `packages/render/src/resume-pdf.ts`(`renderableText`), `packages/render/src/resume-docx.ts`(`clean`) | 제로폭·방향 제어·태그 문자 제거, 특이한 공백을 보통 공백으로. 원문 위치 필드(quote·before·parts[].text)는 그대로 |
+| 공고 맞춤 수정 전후 비교(S4-17) | `apps/web/src/tailor/compare.ts`(`compareRevisions`·`compareSummary`·`wordDiff`), `apps/web/src/tailor/RevisionCompare.tsx`, `TailorPage.tsx`(미리보기/수정 전후 비교 전환), `tests/tailor-compare.test.mjs` | 처음 버전 대비 추가·바뀜·순서·삭제 줄, 낱말 단위 차이, 적용한 수정안의 이유 |
+| Liner 대기 연필 로딩바(S1-39) | `apps/web/src/resume/HrReviewing.tsx`, `apps/web/src/resume/progress.ts`(`linerWaiting`), `AgentProgress.tsx`·`ExtractionProgress.tsx`·`SupplementTurnView.tsx`(표시 위치), `resume.css`(hr-*), `tests/hr-reviewing.test.mjs` | 'HR 담당자가 검토중입니다' + 연필 애니메이션, Liner 단계에서만 |
 | 1차 점검(규칙, S1-13)·문장 패턴(S4-15) | `packages/tailor/src/review.ts`, `packages/tailor/src/patterns.ts`, `apps/web/src/search/ReviewPanel.tsx` | 검색 전 보완 안내·질문, 직무별 원칙·합성 예시(대화 지시문에도 사용) |
 | AI 1차 점검(S1-14) | `contracts/v0.7/migrations/010_resume_review.sql`, `apps/api/src/resume/ai-review.ts`, `apps/worker/src/review-task.ts`, `packages/tailor/src/review-provider.ts`, `packages/liner/src/review.ts`, `apps/web/src/search/AiReviewSection.tsx` | 요청·조회 API, worker, mock/Liner provider·결과 거르기, 화면 버튼·결과 |
 | 기본 이력서 보완 대화(S1-16) | `contracts/v0.7/migrations/011_resume_supplement.sql`, `apps/api/src/resume/supplement.ts`, `apps/worker/src/supplement-task.ts`, `packages/tailor/src/supplement.ts`(턴 거르기·mock), `packages/tailor/src/user-sentence.ts`(사용자 문장 판정, 맞춤 대화와 공유), `packages/liner/src/supplement.ts`, `apps/web/src/resume/SupplementSection.tsx`·`SupplementTurnView.tsx`, `tests/supplement.test.mjs` | 확정 경력 점검·질문 → 사용자 답변 문장만 경력 후보 → 기존 확정 API로 새 버전(user_statement 근거) |
@@ -150,8 +153,11 @@
 | 공고별 이력서 Word 내려받기(S1-27) | `packages/render/src/resume-docx.ts`(`tailoredDocxLines`, `tailoredDocx`, `TAILORED_DOCX_FILENAME`), `apps/web/src/resume/download-docx.ts`(`downloadTailoredDocx`), `TailorPage.tsx`·`FinalPage.tsx` 버튼 |
 | 공고 본문 붙여넣기·HR 근거 판정·전체 맞춤(S1-28) | `apps/api/src/tailor/sessions.ts`(`putSessionJobText`), `contracts/v0.7/migrations/014_tailoring_job_text.sql`, `apps/worker/src/tailor-task.ts`(본문 우선·`latestChecks`), `packages/tailor/src/jd-check.ts`(`screenAssessments`), `packages/tailor/src/tailor-pipeline.ts`(`assess`), `packages/liner/src/tailor-stages.ts`(`buildJdAssessRequest`), `packages/liner/src/chat.ts`(공고 전체 맞춤 규칙), `packages/tailor/src/screen-changes.ts`(중복 요약 제외), `packages/tailor/src/layout.ts`(`employerPeriods`·`projectSpan`), `apps/web/src/tailor/JobTextBox.tsx`·`JdCheckView.tsx` |
 | 추출 확인 화면 묶음·Liner 분류 보정(S1-30) | `packages/tailor/src/fact-groups.ts`(`factGroups`), `apps/web/src/resume/FactEditor.tsx`(묶음 머리·묶음 체크박스), `packages/resume/src/structure.ts`(`applyStructure`), `packages/liner/src/structure.ts`(요청·schema), `apps/api/src/resume/extraction.ts`(`refine`), `apps/api/src/main.ts`(배선), `tests/fact-groups.test.mjs`, `tests/extraction.test.mjs` |
-| 이력서 항목 구성(모델이 줄 범위로 항목 결정)·읽기 진행 표시(S1-31·S1-32) | `packages/resume/src/structure.ts`(`sourceLines`, `composeFacts`), `packages/liner/src/structure.ts`(원문 전체 요청, `parseComposeLines`), `apps/api/src/resume/extraction.ts`(`refine`, `markTransmission`), `apps/web/src/resume/ExtractionProgress.tsx`, `extraction-step.ts`, `tests/fact-groups.test.mjs`, `tests/extraction.test.mjs` |
-| 확인 화면 구역 제목 묶음(S1-33) | `packages/resume/src/sections.ts`(`sectionTitles`), `packages/tailor/src/fact-groups.ts`(sections 인자), `apps/web/src/resume/ReviewPage.tsx` |
+| 이력서 정리(잇기·나누기·빼기·살리기)·읽기 진행 표시(S1-31) | `packages/resume/src/structure.ts`(`structureContext`, `applyStructure`), `packages/liner/src/structure.ts`(원문 전체 + schema), `apps/api/src/resume/extraction.ts`(`refine`, `markTransmission`), `apps/web/src/resume/ExtractionProgress.tsx`, `extraction-step.ts`, `tests/fact-groups.test.mjs` |
+| Liner 검토 초안과 근무지별 프로젝트 | `packages/liner/src/structure.ts`(`buildResumeDraftRequest`), `apps/api/src/resume/review-draft.ts`(원문 검증·문구·프로젝트 메타데이터), `packages/tailor/src/fact-groups.ts`, `apps/web/src/resume/FactEditor.tsx` |
+| 이력서 정리의 라이너 송수신 메시지 | `packages/liner/src/chat.ts`(실제 송수신 본문 전달), `apps/api/src/resume/liner-messages.ts`(임시 보관), `apps/api/src/product.ts`(로컬 개발용 작업 소유자 조회), `tests/extraction.test.mjs`. 화면 표시는 2026-11-24에 없앴다(S1-40), 서버 보관·조회만 남음 |
+| HR 검토 구역·문구 제안 | `packages/liner/src/structure.ts`(review JSON), `apps/api/src/resume/extraction.ts`(검사·작업 결과 저장), `apps/api/src/product.ts`(로컬 개발용 소유자 조회), `apps/web/src/resume/FactEditor.tsx`, `packages/tailor/src/fact-groups.ts` |
+| 원문 기반 Liner 검토 초안 | `packages/liner/src/structure.ts`(groups JSON), `apps/api/src/resume/review-draft.ts`(근거 위치·문구 검사), `apps/api/src/resume/extraction.ts`(추출 경로), `apps/web/src/resume/FactEditor.tsx`(초안·선택), `packages/tailor/src/fact-groups.ts`(근무 이력 묶음) |
 | PDF 양식 대응: 위치 기반 읽기(S1-34) | `packages/resume/src/pdf-layout.ts`(`pageText`, `isScrambled`), `packages/resume/src/pdf.ts`, `tests/pdf-layout.test.mjs` |
 | 스캔본 PDF 글자 인식(S1-35) | `packages/resume/src/pdf-ocr.ts`(`looksScanned`, `ocrPdfIsolated`), `pdf-ocr-worker.ts`, `apps/api/src/resume/extraction.ts`(`extract`의 OCR 분기), `tests/pdf-ocr.test.mjs` |
 | 채용 사이트 우선 검색(S2-14)·에이전트 보충 검색·HR 실무 기준(S1-29) | `packages/liner/src/web-search.ts`(`SITE_GROUPS`, `compactQuery`, `linerQueryPlan`, 경유 링크 `wrappedSiteId`, `createLinerResearchProvider`), `packages/tailor/src/research.ts`(`researchJob`, 결과 거르기), `packages/tailor/src/tailor-pipeline.ts`(`matchRequirements` 앞 보충), `apps/worker/src/main.ts`(research 연결), `packages/liner/src/persona.ts`(`HR_REVIEW_GUIDE` 실무 기준), `packages/liner/src/tailor-stages.ts`(면접 예상 질문·`company_context`) |

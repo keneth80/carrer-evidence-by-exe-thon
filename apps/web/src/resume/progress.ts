@@ -61,3 +61,8 @@ export function stageSummary(stages: SupplementStage[]): string {
   const mark: Record<SupplementStage['state'], string> = { done: '✓', failed: '✕', skipped: '', pending: '…', running: '…' };
   return stages.filter(stage => stage.state !== 'skipped').map(stage => `${stage.label} ${mark[stage.state]}${stage.note ? ` ${stage.note}` : ''}`.trim()).join(' · ');
 }
+
+// Liner(외부 AI)를 부르는 단계. 이 단계가 진행 중이면 'HR 담당자가 검토중입니다' 연필 로딩바를 보인다(S1-39).
+// 규칙 점검(rules)·요구사항 대조(match)는 이 컴퓨터 안에서 바로 끝나므로 넣지 않는다.
+const LINER_STAGES = new Set(['review', 'draft', 'critic', 'single']);
+export const linerWaiting = (key: string | null): boolean => key !== null && LINER_STAGES.has(key);

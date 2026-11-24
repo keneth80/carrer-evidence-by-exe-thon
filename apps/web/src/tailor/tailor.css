@@ -124,3 +124,23 @@
 .job-text-box textarea{width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:8px;border:1px solid #cfdcdd;border-radius:6px;resize:vertical}
 .job-text-box .job-content{max-height:220px;overflow:auto;margin:0;font-size:12px;white-space:pre-wrap}
 .job-text-box .row-actions{align-items:center;flex-wrap:wrap}
+/* 수정 전후 비교(S4-17) */
+.view-switch{display:flex;gap:6px;margin:0 0 8px}
+.view-switch button[aria-pressed=true]{background:#175458;color:#fff;border-color:#175458}
+.revision-compare{display:grid;gap:10px;font-size:13px}
+.cmp-job{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.cmp-versions{margin:0;font-size:12px}
+.cmp-counts{display:flex;flex-wrap:wrap;gap:6px}
+.cmp-counts span{border:1px solid #dce6e7;border-radius:999px;padding:1px 9px;font-size:12px}
+.revision-compare h3{font-size:13px;margin:0 0 6px;padding-bottom:4px;border-bottom:1px solid #dce6e7;color:#175458}
+.revision-compare ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.cmp-row{border-radius:6px;padding:6px 8px;line-height:1.6;overflow-wrap:anywhere}
+.cmp-row.same{color:#4a5557;padding:2px 8px}
+.cmp-row.added{background:#eef8f1}.cmp-row.changed{background:#fff7e0}.cmp-row.removed{background:#fdeeed}.cmp-row.moved{background:#eef3fb}
+.cmp-row p{margin:2px 0}
+.cmp-pair{display:grid;gap:2px}
+.cmp-side{font-size:11px;font-weight:700;color:#6b7578;margin-right:6px}
+.revision-compare ins{background:#bfe8cf;text-decoration:none;border-radius:3px}
+.revision-compare del{background:#f6c3be;border-radius:3px}
+.cmp-reason{font-size:12px;color:#4a5557}
+.tag.cmp-added{background:#bfe8cf;color:#11643a}.tag.cmp-changed{background:#ffe39a;color:#6b4a00}.tag.cmp-removed{background:#f6c3be;color:#8f1d16}.tag.cmp-moved{background:#d6e4f7;color:#1f4a7a}

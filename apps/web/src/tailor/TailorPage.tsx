@@ -14,6 +14,7 @@ import { loadTailor, replyState, statementConfirmed } from './data.ts';
 import type { TailorData } from './data.ts';
 import { changedBlockIds, ResumePreview } from './ResumePreview.tsx';
 import { JobTextBox } from './JobTextBox.tsx';
+import { RevisionCompare } from './RevisionCompare.tsx';
 import { downloadTailoredDocx } from '../resume/download-docx.ts';
 
 // U04 대화형 맞춤 편집: 공고 요구 / AI 대화 / 이력서 미리보기. 작은 화면은 탭으로 전환한다.
@@ -47,6 +48,7 @@ export function TailorPage({ sessionId }: { sessionId: string }) {
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<Tab>('chat');
   const [highlight, setHighlight] = useState<Set<string>>(new Set());
+  const [previewView, setPreviewView] = useState<'preview' | 'compare'>('preview');
   const [sendKey, setSendKey] = useState(() => crypto.randomUUID());
   const latest = useRef(0);
 
@@ -159,6 +161,9 @@ export function TailorPage({ sessionId }: { sessionId: string }) {
     return [...short, ...(sentences ? [`경력 문장 ${sentences}개`] : [])].join(', ');
   };
   const parent = revisions.find(item => item.id === revision.parent_revision_id);
+  // 수정 전후 비교(S4-17)의 기준: 이 세션의 처음 버전(확정 경력으로 만든 기본 이력서).
+  const first = revisions.reduce<typeof revision | null>((earliest, item) => !earliest || item.revision < earliest.revision ? item : earliest, null);
+  const comparing = previewView === 'compare' && first !== null && first.id !== revision.id;
   const pendingFacts = proposals.filter(item => item.state === 'proposed').flatMap(item => item.changes).filter(change => change.needs_fact_confirmation && !statementConfirmed(head, change.after)).length;
 
   return <div className={`tailor tab-${tab}`}>
@@ -206,8 +211,13 @@ export function TailorPage({ sessionId }: { sessionId: string }) {
       </section>
       <section className="panel pane-preview" aria-labelledby="preview-title">
         <h2 id="preview-title">이력서 미리보기 <span className="count">v{revision.revision}</span></h2>
+        {first && first.id !== revision.id && <div className="view-switch" role="group" aria-label="미리보기 방식">
+          <button aria-pressed={!comparing} className="small" onClick={() => setPreviewView('preview')}>미리보기</button>
+          <button aria-pressed={comparing} className="small" onClick={() => setPreviewView('compare')}>수정 전후 비교</button>
+        </div>}
         <div className="row-actions"><button className="outline small" title="이름·연락처는 맨 위 [ ] 칸에 Word에서 직접 넣어 주세요. Word에서 고친 내용은 이 화면으로 돌아오지 않아요. 이 브라우저에서 만들며 서버로 보내지 않아요." onClick={() => downloadTailoredDocx(revision.blocks, facts, job.company_name, revision.revision)}>Word로 내려받기</button></div>
-        <ResumePreview blocks={revision.blocks} facts={[...facts, ...(head?.facts ?? [])]} order={facts} highlightFacts={highlight} changedIds={changedBlockIds(revision.blocks, parent?.blocks)} />
+        {comparing && first ? <RevisionCompare base={first} current={revision} proposals={proposals} job={job} />
+          : <ResumePreview blocks={revision.blocks} facts={[...facts, ...(head?.facts ?? [])]} order={facts} highlightFacts={highlight} changedIds={changedBlockIds(revision.blocks, parent?.blocks)} />}
         {revisions.length > 1 && <details className="history"><summary>버전 기록 ({revisions.length})</summary>
           <ul>{[...revisions].reverse().map(item => <li key={item.id}>
             <span>{item.revision}번째 · {item.state === 'final' ? '확정' : '작성 중'} · {new Date(item.created_at).toLocaleTimeString('ko-KR')}</span>

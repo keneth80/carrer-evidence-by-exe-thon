@@ -4,10 +4,190 @@ import { readFileSync } from 'node:fs';
 import { extractCandidates } from '../packages/resume/src/candidates.ts';
 import { validateConfirmedFacts } from '../packages/resume/src/confirm.ts';
 import { runExtractionTask, recoverExtractionTasks } from '../apps/api/src/resume/extraction.ts';
+import { validateReviewDraft } from '../apps/api/src/resume/review-draft.ts';
+import { createLinerMessageCache } from '../apps/api/src/resume/liner-messages.ts';
+import { buildResumeDraftRequest, createLinerStructureProvider } from '../packages/liner/src/structure.ts';
+import { createLinerLedger } from '../apps/worker/src/liner-ledger.ts';
 import { parseWarning } from '../packages/resume/src/types.ts';
 import { tempFolder, startApi, login, client } from './helpers/s01-harness.mjs';
 
 const pasted = text => ({ input_kind: 'pasted_text', pages: [{ page: null, text }] });
+
+test('Liner draft can combine PDF lines into one rewritten item with the original span', () => {
+  const original = '배치 파이프라인을\n재설계해 처리 시간을\n20% 줄였습니다.';
+  const source = { input_kind: 'text_pdf', pages: [
+    { page: 1, text: original }, { page: 2, text: '운영 보고서를 작성했습니다.' },
+  ] };
+  const { messages, max_completion_tokens: maxTokens, response_format: responseFormat } = buildResumeDraftRequest(source, 'balanced');
+  assert.equal(maxTokens, 10_000);
+  assert.match(messages[0].content, /10,000토큰 이내/);
+  assert.match(messages[0].content, /근무 종료일이 10년 넘게 앞선 이력/);
+  assert.doesNotMatch(messages[0].content, /48개/);
+  const entrySchema = responseFormat.json_schema.schema.properties.groups.items.properties.entries.items;
+  assert.deepEqual(entrySchema.properties.text.type, ['string', 'null']);
+  assert.deepEqual(entrySchema.properties.quote.type, ['string', 'null']);
+  assert.match(messages[0].content, /세 줄 이상에도 적용한다/);
+  assert.equal(messages[1].content, '[page=1] [s=0] 배치 파이프라인을 [s=1] 재설계해 처리 시간을 [s=2] 20% 줄였습니다. [page=2] [s=3] 운영 보고서를 작성했습니다.');
+  const text = '배치 파이프라인 재설계로 처리 시간을 20% 단축했습니다.';
+  const draft = validateReviewDraft({ groups: [{ section: 'career', projects: [], entries: [
+    { category: 'achievement', from: 0, to: 2, quote: null, text },
+    { category: 'responsibility', from: 2, to: 3, quote: null, text: '운영 보고서를 작성했습니다.' },
+  ] }] }, source, 'doc_1', []);
+  assert.equal(draft.facts.length, 1);
+  assert.equal(draft.facts[0].evidence[0].quote, original);
+  assert.equal(draft.review[draft.facts[0].id].wording, text);
+});
+
+// 2026-11-23 실이력서 테스트: 초안 범위가 겹쳐 같은 문장이 두 항목에 들어가고(확정 PDF에 중복), 원문 글머리표가 문장에 남아
+// 렌더러 글머리표와 겹쳤다. 겹침은 원문 글자를 바꾸지 않고 큰 범위를 남기거나 문장 끝에서 나눠 없앤다.
+test('draft keeps the larger of nested spans and drops the leading bullet from the evidence', () => {
+  const text = '• 정산 배치를 재설계해 처리 시간을\n20% 줄였습니다.';
+  const source = { input_kind: 'text_pdf', pages: [{ page: 1, text }] };
+  const draft = validateReviewDraft({ groups: [{ section: 'career', projects: [], entries: [
+    { category: 'achievement', from: 0, to: 0, quote: null, text: null },
+    { category: 'responsibility', from: 0, to: 1, quote: null, text: null },
+  ] }] }, source, 'doc_1', []);
+  assert.deepEqual(draft.facts.map(fact => [fact.category, fact.statement]), [['responsibility', '정산 배치를 재설계해 처리 시간을 20% 줄였습니다.']]);
+  const [evidence] = draft.facts[0].evidence;
+  assert.deepEqual([evidence.start, evidence.quote], [2, '정산 배치를 재설계해 처리 시간을\n20% 줄였습니다.']);
+  assert.deepEqual(Object.keys(draft.review), draft.facts.map(fact => fact.id));
+});
+
+test('draft spans sharing a line are split at the sentence end inside that line', () => {
+  const text = '주문 화면을 설계하고\n운영했습니다. 장애 알림을\n자동화했습니다.';
+  const source = { input_kind: 'text_pdf', pages: [{ page: 1, text }] };
+  const draft = validateReviewDraft({ groups: [{ section: 'career', projects: [], entries: [
+    { category: 'responsibility', from: 0, to: 1, quote: null, text: null },
+    { category: 'responsibility', from: 1, to: 2, quote: null, text: null },
+  ] }] }, source, 'doc_1', []);
+  assert.deepEqual(draft.facts.map(fact => fact.statement), ['주문 화면을 설계하고 운영했습니다.', '장애 알림을 자동화했습니다.']);
+  const chars = Array.from(text);
+  for (const { evidence: [evidence] } of draft.facts) assert.equal(chars.slice(evidence.start, evidence.end).join(''), evidence.quote);
+});
+
+// 이름·머리글은 문맥 파악에 보내지만(S1-31) 이메일·전화번호·주민번호는 가려서 보낸다(2026-11-23 실이력서 테스트에서 그대로 전송된 것을 발견).
+// 가려도 줄 번호는 원문과 같아야 서버가 원문 범위로 근거를 읽는다.
+test('resume draft request masks contact details but keeps names and original line numbers', () => {
+  const source = { input_kind: 'text_pdf', pages: [{ page: 1, text: '홍예시\nhong@example.com · 010-1234-5678\n예시랩 프론트엔드 리드' }] };
+  const { messages } = buildResumeDraftRequest(source, 'balanced');
+  assert.doesNotMatch(JSON.stringify(messages), /hong@example\.com|010-1234-5678/);
+  assert.equal(messages[1].content, '[page=1] [s=0] 홍예시 [s=1] [이메일] · [전화번호] [s=2] 예시랩 프론트엔드 리드');
+  const draft = validateReviewDraft({ groups: [{ section: 'career', projects: [], entries: [
+    { category: 'employer', from: 2, to: 2, quote: null, text: null },
+  ] }] }, source, 'doc_1', []);
+  assert.equal(draft.facts[0].evidence[0].quote, '예시랩 프론트엔드 리드');
+});
+
+test('older career summary shares a heading while each item keeps its own source evidence', () => {
+  const first = '예시사에서 서비스 운영을 담당했습니다.';
+  const second = '가상랩에서 서비스 출시를 지원했습니다.';
+  const draft = validateReviewDraft({ groups: [{ section: 'career', older_career_summary: true, projects: [], entries: [
+    { category: 'responsibility', from: 0, to: 0, quote: null, text: '예시사 서비스 운영을 담당했습니다.' },
+    { category: 'responsibility', from: 1, to: 1, quote: null, text: '가상랩 서비스 출시를 지원했습니다.' },
+  ] }] }, pasted(`${first}\n${second}`), 'doc_1', []);
+  assert.deepEqual(draft.facts.map(fact => fact.evidence[0].quote), [first, second]);
+  assert.deepEqual(Object.values(draft.review).map(item => item.group), [
+    { id: '0', title: '이전 경력 요약' }, { id: '0', title: '이전 경력 요약' },
+  ]);
+});
+
+test('line-only draft evidence cannot include personal information in a career item', () => {
+  const text = 'resume@example.com\n서비스 운영을 맡았습니다.';
+  const draft = validateReviewDraft({ groups: [{ section: 'career', projects: [], entries: [
+    { category: 'responsibility', from: 0, to: 1, quote: null, text: '서비스 운영을 맡았습니다.' },
+    { category: 'responsibility', from: 1, to: 1, quote: null, text: '서비스 운영을 담당했습니다.' },
+  ] }] }, pasted(text), 'doc_1', [{ code: 'PERSONAL_INFO_EXCLUDED', page: null, start: 0, end: 18 }]);
+  assert.deepEqual(draft.facts.map(fact => fact.statement), ['서비스 운영을 맡았습니다.']);
+});
+
+test('only the owner can view the actual Liner messages sent and received for an extraction task', async () => {
+  const { folder, cleanup } = tempFolder('s01-liner-messages-');
+  const linerMessages = createLinerMessageCache();
+  const api = await startApi(folder, { autoExtract: false, linerMessages });
+  const providerRequest = Promise.withResolvers();
+  const providerReply = Promise.withResolvers();
+  let extraction;
+  try {
+    const owner = client(api, await login(api, 'messages-owner'));
+    const outsider = client(api, await login(api, 'messages-outsider'));
+    const text = '홍예시\nresume@example.com\n경력\n예시랩 | 2019.03 - 현재\n서비스 운영을 맡았습니다.\n정산 프로젝트\n정산 로그를 살펴봤습니다.\n매일 운영 현황을 기록했습니다.';
+    const upload = await owner.post('/api/v1/resume-documents/text', { json: { text } });
+    assert.equal(upload.status, 202);
+    const taskId = upload.body.task.id;
+    const path = `/api/v1/local-dev/extraction-tasks/${taskId}/liner-messages`;
+    assert.deepEqual((await owner.get(path)).body, { messages: null });
+
+    const structure = createLinerStructureProvider({
+      apiKey: 'test-only',
+      ledger: createLinerLedger({ db: api.db, owner: api.extraction.owner, now: Date.now, maxCalls: 1, budgetMicroUsd: 1_000_000 }),
+      fetch: async (_url, init) => {
+        providerRequest.resolve(JSON.parse(init.body));
+        return providerReply.promise;
+      },
+      onMessages: (call, messages) => linerMessages.set(call.taskId, messages),
+    });
+    extraction = runExtractionTask({ ...api.extraction, structure }, taskId);
+    const request = await Promise.race([providerRequest.promise, extraction.then(() => assert.fail('Expected a Liner request'))]);
+    const { messages: sentMessages } = request;
+    const groupSchema = request.response_format.json_schema.schema.properties.groups.items;
+    assert.ok(groupSchema.required.includes('projects'));
+    assert.deepEqual(groupSchema.properties.projects.items.required, ['heading', 'entries']);
+    const pending = await owner.get(path);
+    assert.equal(pending.headers.get('cache-control'), 'no-store');
+    assert.deepEqual(pending.body, { messages: { request: sentMessages, response: null } });
+    assert.match(sentMessages[1].content, /\[s=0\] 홍예시 \[s=1\] \[이메일\] \[s=2\] 경력/);
+    assert.doesNotMatch(JSON.stringify(request), /resume@example\.com/);
+    assert.equal((await outsider.get(path)).status, 404);
+    assert.equal((await client(api).get(path)).status, 401);
+
+    assert.doesNotMatch(sentMessages[1].content, /unclassified/);
+    const content = JSON.stringify({ groups: [
+      { section: 'career', older_career_summary: false, entries: [
+        { from: 3, to: 3, category: 'employer', quote: '예시랩', text: null },
+        { from: 3, to: 3, category: 'period', quote: '2019.03 - 현재', text: '2025년에 입사했습니다.' },
+        { from: 4, to: 4, category: 'responsibility', quote: '서비스 운영을 맡았습니다.', text: '서비스 운영을 담당했습니다.' },
+        { from: 4, to: 4, category: 'achievement', quote: '없는 성과', text: '없는 성과' },
+      ], projects: [
+        { heading: { from: 5, to: 5, category: 'other', quote: '정산 프로젝트', text: '정산 프로젝트' }, entries: [
+          { from: 6, to: 6, category: 'responsibility', quote: '정산 로그를 살펴봤습니다.', text: '정산 로그를 검토했습니다.' },
+        ] },
+        { heading: { from: 7, to: 7, category: 'other', quote: '원문에 없는 프로젝트 이름', text: '원문에 없는 프로젝트 이름' }, entries: [
+          { from: 7, to: 7, category: 'responsibility', quote: '매일 운영 현황을 기록했습니다.', text: '운영 현황을 매일 기록했습니다.' },
+        ] },
+      ] },
+    ] });
+    providerReply.resolve(Response.json({ choices: [{ message: { role: 'assistant', content } }], usage: { prompt_tokens: 100, completion_tokens: 20 } }));
+    assert.equal(await extraction, 'completed');
+    assert.deepEqual((await owner.get(path)).body, { messages: { request: sentMessages, response: { role: 'assistant', content } } });
+    const reviewPath = `/api/v1/local-dev/extraction-tasks/${taskId}/review`;
+    const group = { id: '0', title: '예시랩 · 2019.03 - 현재' };
+    assert.deepEqual((await owner.get(reviewPath)).body, {
+      fact_l_1: { section: 'career', wording: null, group, primary: true },
+      fact_l_2: { section: 'career', wording: null, group, primary: true },
+      fact_l_3: { section: 'career', wording: '서비스 운영을 담당했습니다.', group, primary: true },
+      fact_l_4: { section: 'career', wording: null, group, project: { id: '0', title: '정산 프로젝트' }, primary: true },
+      fact_l_5: { section: 'career', wording: '정산 로그를 검토했습니다.', group, project: { id: '0', title: '정산 프로젝트' }, primary: true },
+      fact_l_6: { section: 'career', wording: '운영 현황을 매일 기록했습니다.', group, project: { id: '1', title: '프로젝트' }, primary: true },
+    });
+    const draft = (await owner.get(`/api/v1/resume-documents/${upload.body.resource_id}/extraction`)).body;
+    assert.deepEqual(draft.facts.map(fact => fact.statement), [
+      '예시랩', '2019.03 - 현재', '서비스 운영을 맡았습니다.', '정산 프로젝트', '정산 로그를 살펴봤습니다.', '매일 운영 현황을 기록했습니다.',
+    ]);
+    const evidence = draft.facts[4].evidence[0];
+    assert.equal(Array.from(text).slice(evidence.start, evidence.end).join(''), '정산 로그를 살펴봤습니다.');
+    const confirmed = await owner.post(`/api/v1/resume-documents/${upload.body.resource_id}/fact-revisions`, {
+      json: { extraction_id: draft.id, expected_parent_revision_id: null, facts: [draft.facts[0], draft.facts[2], draft.facts[3], draft.facts[4]] },
+    });
+    assert.equal(confirmed.status, 201);
+    assert.deepEqual(confirmed.body.facts.map(fact => fact.statement), ['예시랩', '서비스 운영을 맡았습니다.', '정산 프로젝트', '정산 로그를 살펴봤습니다.']);
+    assert.equal((await outsider.get(reviewPath)).status, 404);
+  } finally {
+    providerReply.resolve(new Response(null, { status: 400 }));
+    await extraction?.catch(() => {});
+    await api.stop();
+    cleanup();
+  }
+});
 
 test('candidate rules keep source spans, split skills and skip negated, preference and contact lines', () => {
   const text = '김예시\n데이터 엔지니어\nphone 010-1234-5678\n\n경력\n예시랩 | 2019.03 - 현재\n배치 파이프라인 처리 시간을 40% 줄였습니다.\nSpark 경험은 없습니다.\n\n기술\n주요: Airflow · dbt / BigQuery\n희망 근무지: 서울';
@@ -75,6 +255,29 @@ test('a numbered list item inside a section is not mistaken for a heading', () =
   assert.deepEqual(facts.map(fact => [fact.category, fact.statement]), [
     ['employer', '예시사'], ['period', '2020.01 - 현재'], ['responsibility', '1. 결제 API 설계'], ['responsibility', '10. 장애 대응 문서화'],
   ]);
+});
+
+test('a wrapped introduction without a section title is one candidate with its original source span', () => {
+  const introduction = [
+    '현장 데이터를 다루는 개발자로서 장비 모니터링과 실시간 데이터 처리 시스템의 개발을',
+    '담당해 왔습니다. 백엔드 서비스 운영을 경험했고 현재는 장비 연동 설계 및',
+    'API 운영을 맡고 있습니다.',
+  ];
+  const text = ['홍예시', 'resume@example.com', ...introduction, '경력', '예시랩 | 2019.03 - 현재'].join('\n');
+  const { facts, warnings } = extractCandidates(pasted(text), 'doc_1');
+  assert.deepEqual(facts.map(fact => [fact.category, fact.statement]), [
+    ['other', introduction.join(' ')], ['employer', '예시랩'], ['period', '2019.03 - 현재'],
+  ]);
+  const [evidence] = facts[0].evidence;
+  assert.equal(evidence.quote, introduction.join('\n'));
+  assert.equal(Array.from(text).slice(evidence.start, evidence.end).join(''), evidence.quote);
+  assert.deepEqual(warnings.map(warning => warning.code), ['UNCLASSIFIED_LINE', 'PERSONAL_INFO_EXCLUDED']);
+
+  for (const boundary of ['\n\n', '\nresume@example.com\n', '\n1. ']) {
+    const separated = introduction[0] + boundary + introduction.slice(1).join('\n');
+    const result = extractCandidates(pasted(separated), 'doc_1');
+    assert.ok(result.facts.every(fact => !fact.statement.startsWith(introduction[0])));
+  }
 });
 
 test('table-style Word resume: qualified headings, table header row, date-only rows, role lines, skill labels and bullets', () => {
@@ -211,49 +414,43 @@ test('queued extraction survives restart and a runner that lost its lease cannot
   }
 });
 
-// 항목 구성(S1-32): 실호출에서는 모델이 원문 줄 범위로 항목을 정한다. 실패하거나 다시 집힌 작업에서는 규칙으로 나눈 결과를 저장한다.
-test('model-composed items replace rule candidates once; failure or a re-claimed task falls back to rules', async () => {
+// 분류·묶음 보정(S1-30): 모델 응답은 분류와 위치만 바꾸고, 실패하거나 다시 집힌 작업에서는 규칙 분류 그대로 저장한다.
+test('structure provider refines categories once; failure or a re-claimed task falls back to rule categories', async () => {
   const { folder, cleanup } = tempFolder('s01-structure-');
   const api = await startApi(folder, { autoExtract: false });
   try {
     const http = client(api, await login(api, 'erin'));
-    const text = '경력\n예시랩 | 2019.03 - 현재\n배치 파이프라인 처리 시간을\n40% 줄였습니다.\n서비스 운영을 맡았습니다.';
+    const text = '경력\n예시랩 | 2019.03 - 현재\n배치 파이프라인 처리 시간을 40% 줄였습니다.\n서비스 운영을 맡았습니다.';
     const calls = [];
     // 같은 내용 중복 등록으로 묶이지 않게 줄 하나를 다르게 한다.
     let seq = 0;
     const upload = async () => (await http.post('/api/v1/resume-documents/text', { json: { text: text.replace('예시랩', `예시랩${++seq}`) } })).body;
     const draft = async id => (await http.get(`/api/v1/resume-documents/${id}/extraction`)).body;
-    const transmission = async id => (await http.get(`/api/v1/product-tasks/${id}`)).body.provider_transmission;
 
     const first = await upload();
-    const ok = { compose: async input => { calls.push(input); return { items: [{ from: 1, to: 1, text: null, category: 'employer' }, { from: 2, to: 3, text: null, category: 'achievement' }, { from: 4, to: 4, text: null, category: 'responsibility' }] }; } };
+    const ok = { classify: async input => { calls.push(input); return { items: [{ n: input.lines.length - 1, category: 'achievement', under: null }, { n: 999, category: 'role', under: null }], adds: [] }; } };
     assert.equal(await runExtractionTask({ ...api.extraction, structure: ok }, first.task.id), 'completed');
-    const composed = await draft(first.resource_id);
-    assert.deepEqual(composed.facts.map(fact => [fact.category, fact.statement]).slice(1), [['achievement', '배치 파이프라인 처리 시간을 40% 줄였습니다.'], ['responsibility', '서비스 운영을 맡았습니다.']]);
-    assert.ok(composed.warnings.some(warning => warning.includes('AI가 항목으로 넣지 않은 줄')), 'the unused heading line stays addable');
+    const refined = await draft(first.resource_id);
+    assert.equal(refined.facts.at(-1).category, 'achievement');
+    assert.equal(refined.facts.at(-1).statement, '서비스 운영을 맡았습니다.');
     assert.equal(calls.length, 1);
+    // 원문 전체가 함께 가고, 화면의 단계 표시가 읽는 전송 상태가 작업에 남는다.
+    assert.ok(calls[0].context.source.some(line => line.text.includes('배치 파이프라인')));
+    assert.equal((await http.get(`/api/v1/product-tasks/${first.task.id}`)).body.provider_transmission, 'completed');
     assert.deepEqual(calls[0].call, { workspaceId: calls[0].call.workspaceId, taskId: first.task.id, leaseGeneration: 1 });
-    // 원문 전체가 줄 단위로 함께 가고, 화면의 단계 표시가 읽는 전송 상태가 작업에 남는다.
-    assert.deepEqual(calls[0].lines.map(line => line.text).slice(2), ['배치 파이프라인 처리 시간을', '40% 줄였습니다.', '서비스 운영을 맡았습니다.']);
-    assert.equal(await transmission(first.task.id), 'completed');
-    // 모델이 만든 항목도 사용자가 확정할 때 같은 원문 근거 검사를 통과한다.
-    const confirmed = await http.post(`/api/v1/resume-documents/${first.resource_id}/fact-revisions`, { json: { extraction_id: composed.id, expected_parent_revision_id: null, facts: composed.facts } });
-    assert.equal(confirmed.status, 201);
+    assert.ok(calls[0].lines.every(line => Object.keys(line).join() === 'n,category,statement'));
 
     const second = await upload();
-    const broken = { compose: async () => { throw Object.assign(new Error('x'), { code: 'LINER_CALL_LIMIT' }); } };
+    const broken = { classify: async () => { throw Object.assign(new Error('x'), { code: 'LINER_CALL_LIMIT' }); } };
     assert.equal(await runExtractionTask({ ...api.extraction, structure: broken }, second.task.id), 'completed');
-    assert.deepEqual((await draft(second.resource_id)).facts.map(fact => fact.statement).slice(-2), ['40% 줄였습니다.', '서비스 운영을 맡았습니다.']);
-    assert.equal(await transmission(second.task.id), 'unknown');
-
-    const thin = await upload();
-    assert.equal(await runExtractionTask({ ...api.extraction, structure: { compose: async () => ({ items: [{ from: 0, to: 0, text: null, category: 'other' }] }) } }, thin.task.id), 'completed');
-    assert.ok((await draft(thin.resource_id)).facts.length >= 3, 'a response that covers too little is rejected');
+    assert.equal((await draft(second.resource_id)).facts.at(-1).category, 'responsibility');
+    assert.equal((await http.get(`/api/v1/product-tasks/${second.task.id}`)).body.provider_transmission, 'unknown');
 
     const third = await upload();
     api.db.prepare("UPDATE ce7_tasks SET state = 'running', lease_owner = 'dead-runner', lease_generation = 1, lease_until_ms = 1 WHERE id = ?").run(third.task.id);
     assert.equal(await runExtractionTask({ ...api.extraction, structure: ok }, third.task.id), 'completed');
     assert.equal(calls.length, 1, 're-claimed task does not send the paid call again');
+    assert.equal((await draft(third.resource_id)).facts.at(-1).category, 'responsibility');
   } finally {
     await api.stop();
     cleanup();
