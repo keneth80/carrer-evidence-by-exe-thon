@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { factGroups } from '../packages/tailor/src/fact-groups.ts';
 import { applyStructure, structureContext, structureLines } from '../packages/resume/src/structure.ts';
 import { extractCandidates } from '../packages/resume/src/candidates.ts';
-import { extractionStep, linerExchange } from '../apps/web/src/resume/extraction-step.ts';
+import { extractionStep } from '../apps/web/src/resume/extraction-step.ts';
 import { buildStructureRequest, STRUCTURE_SCHEMA } from '../packages/liner/src/structure.ts';
 
 // 사용자 테스트(2026-11-21): 추출 확인 화면에서 회사명·직무·근무지역이 따로 체크박스로 나와 보기 힘들었다.
@@ -246,14 +246,4 @@ test('whole source includes contact and header lines on one line while keeping t
 test('extraction progress step follows the real task state', () => {
   const step = (state, provider_transmission) => extractionStep({ state, provider_transmission });
   assert.deepEqual([extractionStep(null), step('queued', 'not_dispatched'), step('running', 'not_dispatched'), step('running', 'dispatched'), step('running', 'completed'), step('running', 'unknown'), step('running', undefined)], [0, 0, 0, 1, 2, 2, 0]);
-});
-
-test('Liner exchange distinguishes no call, pending response, received response and unknown outcome', () => {
-  const exchange = (state, provider_transmission) => linerExchange({ state, provider_transmission });
-  assert.deepEqual(exchange('succeeded', 'not_dispatched'), { request: '전송 내역 없음', response: '수신 내역 없음' });
-  assert.deepEqual(exchange('running', 'dispatched'), { request: '전송됨', response: '응답 대기 중' });
-  assert.deepEqual(exchange('succeeded', 'completed'), { request: '전송됨', response: '응답 수신됨' });
-  assert.deepEqual(exchange('succeeded', 'unknown'), { request: '전송 시도', response: '수신 여부 확인 불가' });
-  assert.equal(exchange('succeeded', 'dispatched').response, '수신 여부 확인 불가');
-  assert.equal(exchange('succeeded').response, '수신 상태 확인 불가');
 });

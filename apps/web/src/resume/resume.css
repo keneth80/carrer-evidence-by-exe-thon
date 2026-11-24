@@ -7,18 +7,6 @@
 .panel{background:#fff;border:1px solid #dce6e7;border-radius:10px;padding:22px;min-width:0}
 .panel h2{font-size:18px;margin:0 0 14px}
 .panel.narrow{max-width:560px}
-.liner-exchange{margin:12px 0;padding:14px 16px}
-.liner-exchange h2{font-size:15px;margin-bottom:10px}
-.liner-exchange dl{display:flex;flex-wrap:wrap;gap:10px 28px;margin:0;font-size:13px}
-.liner-exchange dl>div{display:flex;gap:8px}
-.liner-exchange dt{color:#63777f}
-.liner-exchange dd{margin:0;font-weight:650}
-.liner-exchange details{margin-top:12px;padding-top:10px;border-top:1px solid #e3eaeb}
-.liner-exchange summary{cursor:pointer;font-size:13px;font-weight:650;color:#2b5f66}
-.liner-messages{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px;margin-top:10px}
-.liner-messages h3{margin:0 0 6px;font-size:14px}
-.liner-messages h4{margin:8px 0 4px;color:#63777f;font-size:12px}
-.liner-messages pre{max-height:240px;overflow:auto;margin:0;padding:10px;border:1px solid #e3eaeb;border-radius:6px;background:#f7faf9;font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
 .inline-form{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-top:12px}
 .inline-form label{display:grid;gap:6px;font-size:13px;font-weight:650}
 .inline-form input{border:1px solid #c8d9d8;border-radius:7px;padding:10px 12px;min-width:220px}
