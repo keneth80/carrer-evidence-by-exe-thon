@@ -73,7 +73,7 @@
 | API handler | `apps/api/src/tailor/sessions.ts`, `proposals.ts`, `revisions.ts`, `repository.ts` | 세션·메시지·재시도·되돌리기, 제안 수용(부분)·거절, revision 조회·확정, PDF 요청·메타·파일 제공 |
 | 대화 진술 근거 확정 | `packages/resume/src/confirm.ts`, `apps/api/src/resume/review.ts` | `user_statement` 근거(같은 workspace의 user 메시지, 서버 확인 시각) |
 | worker | `apps/worker/src/lease.ts`, `tailor-task.ts`, `render-task.ts` | 공용 lease·heartbeat·CAS, 대화 응답·제안 저장(선별·stale), PDF 생성·hash 저장 |
-| 화면 | `apps/web/src/tailor/` | `TailorPage`(U04 3분할·탭), `ChatPanel`(JD 점검 버튼·진행 패널·턴 요약), `JdCheckView`(요구사항 점검표·뺀 수정안, S1-18), `ProposalCard`, `ResumePreview`, `FinalPage`(U05 확정·PDF), `data.ts` |
+| 화면 | `apps/web/src/tailor/` | `TailorPage`(U04 3분할·탭, 미리보기/수정 전후 비교), `RevisionCompare`(S4-17), `ChatPanel`(JD 점검 버튼·진행 패널·턴 요약), `JdCheckView`(요구사항 점검표·뺀 수정안, S1-18), `ProposalCard`, `ResumePreview`, `FinalPage`(U05 확정·PDF), `data.ts` |
 | 검사 | `tests/tailor-unit.test.mjs`, `tests/tailoring-flow.test.mjs`, `tests/helpers/s04-harness.mjs`, `tests/helpers/pdf-glyphs.mjs` | 단위·HTTP+worker 통합, PDF 글리프 윤곽선 검사 |
 
 ## S05 브라우저 지원·제출 이력 코드 (2026-11-18 구현)
@@ -138,6 +138,7 @@
 | 대화 provider(Liner live, S4-14) | `packages/liner/src/chat.ts`, `apps/worker/src/main.ts`, `apps/api/src/config.ts`(CHAT_MODE), `scripts/liner-chat-check.mjs`, `apps/web/src/tailor/chatMode.ts` | Router API 요청·예약/정산·연락처 가림·가격표, 실호출 확인 스크립트, 화면 전송 안내 |
 | 안티슬롭(S4-13) | `packages/tailor/src/slop.ts`, `packages/tailor/src/screen-changes.ts`(`screenChanges`·`guardReason`, worker `tailor-task.ts`가 재수출), `packages/tailor/src/user-sentence.ts` | AI 제안 문장 상투·과장 표현 제외, 사실 확인 후보 원문 문장 보정 |
 | 보이지 않는 문자 지우기(S4-16) | `packages/tailor/src/hidden-chars.ts`(`withoutHiddenChars`), `packages/liner/src/scrub.ts`(`scrubProse`, Liner 응답), `packages/render/src/resume-pdf.ts`(`renderableText`), `packages/render/src/resume-docx.ts`(`clean`) | 제로폭·방향 제어·태그 문자 제거, 특이한 공백을 보통 공백으로. 원문 위치 필드(quote·before·parts[].text)는 그대로 |
+| 공고 맞춤 수정 전후 비교(S4-17) | `apps/web/src/tailor/compare.ts`(`compareRevisions`·`compareSummary`·`wordDiff`), `apps/web/src/tailor/RevisionCompare.tsx`, `TailorPage.tsx`(미리보기/수정 전후 비교 전환), `tests/tailor-compare.test.mjs` | 처음 버전 대비 추가·바뀜·순서·삭제 줄, 낱말 단위 차이, 적용한 수정안의 이유 |
 | 1차 점검(규칙, S1-13)·문장 패턴(S4-15) | `packages/tailor/src/review.ts`, `packages/tailor/src/patterns.ts`, `apps/web/src/search/ReviewPanel.tsx` | 검색 전 보완 안내·질문, 직무별 원칙·합성 예시(대화 지시문에도 사용) |
 | AI 1차 점검(S1-14) | `contracts/v0.7/migrations/010_resume_review.sql`, `apps/api/src/resume/ai-review.ts`, `apps/worker/src/review-task.ts`, `packages/tailor/src/review-provider.ts`, `packages/liner/src/review.ts`, `apps/web/src/search/AiReviewSection.tsx` | 요청·조회 API, worker, mock/Liner provider·결과 거르기, 화면 버튼·결과 |
 | 기본 이력서 보완 대화(S1-16) | `contracts/v0.7/migrations/011_resume_supplement.sql`, `apps/api/src/resume/supplement.ts`, `apps/worker/src/supplement-task.ts`, `packages/tailor/src/supplement.ts`(턴 거르기·mock), `packages/tailor/src/user-sentence.ts`(사용자 문장 판정, 맞춤 대화와 공유), `packages/liner/src/supplement.ts`, `apps/web/src/resume/SupplementSection.tsx`·`SupplementTurnView.tsx`, `tests/supplement.test.mjs` | 확정 경력 점검·질문 → 사용자 답변 문장만 경력 후보 → 기존 확정 API로 새 버전(user_statement 근거) |
